@@ -23,6 +23,12 @@ Import Trace.
   (** Qualifier [ϕ] may refer to two bound variables: [bvar 1] is the argument
   variable, [bvar 0] is result variable. *)
 
+(** we adopt a more general version of [tdConst] than what's presented
+  in the paper *)
+Inductive func : Type :=
+| tdIdentity
+| tdConst (op : effop) (ϕ : qualifier).
+                                             
 (** The transducer supports
     - l/epsilon
     - l/id
@@ -33,9 +39,7 @@ Import Trace.
     - Ex x:b. T
  *)
 Inductive transducer : Type :=
-| tdLitEps (op: effop) (ϕ: qualifier)
-| tdLitId (op: effop) (ϕ: qualifier)
-| tdLitPair (op1: effop) (ϕ1: qualifier) (op2: effop) (ϕ2: qualifier)
+| tdLit (op: effop) (ϕ: qualifier) (out: list func)
 | tdConcat (td1: transducer) (td2: transducer)
 | tdUnion (td1: transducer) (td2: transducer)
 (* | tdStar (td: transducer) *)
