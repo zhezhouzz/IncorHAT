@@ -170,8 +170,10 @@ Ltac apply_by_set_solver :=
       specialize (H x); destruct H; auto; my_set_solver; auto
   end.
 
+(** NOTE: all (L: aset) should be the first hypothesis *)
+
 Ltac auto_exists_L :=
-  let acc := collect_stales tt in econstructor; eauto; instantiate (1 := acc).
+  let acc := collect_stales tt in econstructor; eauto; try instantiate (1 := acc).
 
 Ltac auto_exists_L_intros :=
 let acc := collect_stales tt in instantiate (1 := acc); intros; simpl.
@@ -268,6 +270,9 @@ Ltac equate x y :=
 
 Ltac specialize_with x :=
   match goal with
+  | [H: forall x, (x ∈ ?L → False) -> _ |- _] =>
+      let Htmp := fresh "Htmp" in
+      assert (x ∉ L) as Htmp by fast_set_solver; specialize (H x Htmp); try clear Htmp
   | [H: forall x, x ∉ ?L -> _ |- _] =>
       let Htmp := fresh "Htmp" in
       assert (x ∉ L) as Htmp by fast_set_solver; specialize (H x Htmp); try clear Htmp

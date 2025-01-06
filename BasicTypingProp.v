@@ -222,8 +222,8 @@ Qed.
 
 (** * Type preservation *)
 
-Lemma tr_reduction_sound α op c1 c :
-  α⊧{op~c1}⇓{c} ->
+Lemma tr_reduction_sound α β op c1 c :
+  α⊧{op~c1}⇓{β}{c} ->
   ty_of_const c = ret_ty_of_op op.
 Proof.
   induction 1; eauto.

@@ -432,3 +432,70 @@ Definition lc_phi1 ϕ :=
 
 Definition lc_phi2 ϕ :=
   exists (L : aset), (forall (x : atom), x ∉ L -> forall (y : atom), y ∉ L -> lc_qualifier ({0 ~q> y} ({1 ~q> x} ϕ))).
+
+Lemma subst_lc_phi1 : forall x (u: value) (ϕ: qualifier),
+    lc_phi1 ϕ -> lc u -> lc_phi1 ({x := u}q ϕ).
+Proof.
+  unfold lc_phi1.
+  destruct 1. intros Hu.
+  auto_exists_L. intros y Hy.
+  specialize_with y.
+  rewrite <- !subst_open_var_qualifier by (eauto; my_set_solver).
+  eauto using subst_lc_qualifier.
+Qed.
+
+Lemma subst_lc_phi2 : forall x (u: value) (ϕ: qualifier),
+    lc_phi2 ϕ -> lc u -> lc_phi2 ({x := u}q ϕ).
+Proof.
+  unfold lc_phi2.
+  destruct 1. intros Hu.
+  auto_exists_L. intros y1 Hy1 y2 Hy2.
+  specialize_with y1.
+  specialize_with y2.
+  rewrite <- !subst_open_var_qualifier by (eauto; my_set_solver).
+  eauto using subst_lc_qualifier.
+Qed.
+
+Lemma lc_subst_phi1 : forall x (u: value) (ϕ: qualifier),
+    lc_phi1 ({x := u}q ϕ) -> lc u -> lc_phi1 ϕ.
+Proof.
+  unfold lc_phi1.
+  destruct 1. intros Hu.
+  auto_exists_L. intros y Hy.
+  specialize_with y.
+  eapply lc_subst_qualifier; eauto.
+  rewrite -> !subst_open_var_qualifier; eauto. my_set_solver.
+Qed.
+
+Lemma lc_subst_phi2 : forall x (u: value) (ϕ: qualifier),
+    lc_phi2 ({x := u}q ϕ) -> lc u -> lc_phi2 ϕ.
+Proof.
+  unfold lc_phi2.
+  destruct 1. intros Hu.
+  auto_exists_L. intros y1 Hy1 y2 Hy2.
+  specialize_with y1.
+  specialize_with y2.
+  eapply lc_subst_qualifier; eauto.
+  rewrite -> !subst_open_var_qualifier; eauto; my_set_solver.
+Qed.
+
+Lemma lc_phi1_and ϕ1 ϕ2:
+  lc_phi1 ϕ1 -> lc_phi1 ϕ2 -> lc_phi1 (ϕ1 & ϕ2).
+Proof.
+  intros. unfold lc_phi1 in *. simp_hyps.
+  auto_exists_L. intros y1 Hy1.
+  specialize_with y1. specialize_with y1.
+  rewrite qualifier_and_open.
+  eauto using lc_qualifier_and.
+Qed.
+
+Lemma lc_phi2_and ϕ1 ϕ2:
+  lc_phi2 ϕ1 -> lc_phi2 ϕ2 -> lc_phi2 (ϕ1 & ϕ2).
+Proof.
+  intros. unfold lc_phi2 in *. simp_hyps.
+  auto_exists_L. intros y1 Hy1 y2 Hy2.
+  specialize_with y1. specialize_with y2.
+  specialize_with y1. specialize_with y2.
+  rewrite qualifier_and_open. rewrite qualifier_and_open.
+  eauto using lc_qualifier_and.
+Qed.

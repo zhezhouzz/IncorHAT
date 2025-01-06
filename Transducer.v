@@ -24,28 +24,25 @@ Import Trace.
   variable, [bvar 0] is result variable. *)
 
 (** The transducer supports
-    - l/epsilon
-    - l/id
-    - l1/l2
+    - ⟨x_ret ← f x_arg | 𝜙⟩/id
+    - ⟨x_ret ← f x_arg | 𝜙⟩/⟨v_ret ← f v_arg⟩
     - T . T
     - T \/ T
-    - T*
     - Ex x:b. T
  *)
 Inductive transducer : Type :=
-| tdLitEps (op: effop) (ϕ: qualifier)
 | tdLitId (op: effop) (ϕ: qualifier)
-| tdLitPair (op1: effop) (ϕ1: qualifier) (op2: effop) (ϕ2: qualifier)
-| tdConcat (td1: transducer) (td2: transducer)
+| tdLitOut (op1: effop) (ϕ1: qualifier) (op2: effop) (arg2: value) (ret2: value)
+| tdComp (td1: transducer) (td2: transducer)
 | tdUnion (td1: transducer) (td2: transducer)
 (* | tdStar (td: transducer) *)
 | tdEx (b: base_ty) (ϕ: qualifier) (td: transducer).
 
-Notation "'⟨' op '|' ϕ '⟩/ϵ'" := (tdLitEps op ϕ) (at level 5, format "⟨ op | ϕ ⟩/ϵ", op constr, ϕ constr).
+(* Notation "'⟨' op '|' ϕ '⟩/ϵ'" := (tdLitEps op ϕ) (at level 5, format "⟨ op | ϕ ⟩/ϵ", op constr, ϕ constr). *)
 Notation "'⟨' op '|' ϕ '⟩/id'" := (tdLitId op ϕ) (at level 5, format "⟨ op | ϕ ⟩/id", op constr, ϕ constr).
-Notation "'⟨' op1 '|' ϕ1 '⟩/⟨' op2 '|' ϕ2 '⟩'" := (tdLitPair op1 ϕ1 op2 ϕ2) (at level 5, format "⟨ op1 | ϕ1 ⟩/⟨ op2 | ϕ2 ⟩", op1 constr, ϕ1 constr, op2 constr, ϕ2 constr).
+Notation "'⟨' op1 '|' ϕ1 '⟩/⟨' op2 '|' arg '|' ret '⟩'" := (tdLitOut op1 ϕ1 op2 arg ret) (at level 5, format "⟨ op1 | ϕ1 ⟩/⟨ op2 | arg | ret ⟩", op1 constr, ϕ1 constr, op2 constr, arg constr, ret constr).
 
-Notation " a ';+' b " := (tdConcat a b) (at level 5, format "a ;+ b", b constr, a constr, right associativity).
+Notation " a '○' b " := (tdComp a b) (at level 5, format "a ○ b", b constr, a constr, right associativity).
 
 Global Hint Constructors transducer: core.
 
@@ -54,9 +51,9 @@ Global Hint Constructors transducer: core.
 (** free variables *)
 Fixpoint td_fv a : aset :=
   match a with
-  | tdLitEps _ ϕ | tdLitId _ ϕ => qualifier_fv ϕ
-  | tdLitPair _ ϕ1 _ ϕ2 => qualifier_fv ϕ1 ∪ qualifier_fv ϕ2
-  | tdConcat a1 a2 | tdUnion a1 a2 => td_fv a1 ∪ td_fv a2
+  | tdLitId _ ϕ => qualifier_fv ϕ
+  | tdLitOut _ ϕ1 _ arg ret => qualifier_fv ϕ1 ∪ fv_value arg ∪ fv_value ret
+  | tdComp a1 a2 | tdUnion a1 a2 => td_fv a1 ∪ td_fv a2
   | tdEx _ ϕ a => qualifier_fv ϕ ∪ td_fv a
   end.
 
@@ -67,10 +64,9 @@ Arguments td_stale /.
 (* The effect operator always has 2 bound variables *)
 Fixpoint td_open (k: nat) (s: value) (a : transducer): transducer :=
   match a with
-  | tdLitEps op ϕ => tdLitEps op (qualifier_open (S (S k)) s ϕ)
   | tdLitId op ϕ => tdLitId op (qualifier_open (S (S k)) s ϕ)
-  | tdLitPair op1 ϕ1 op2 ϕ2 => tdLitPair op1 (qualifier_open (S (S k)) s ϕ1) op2 (qualifier_open (S (S k)) s ϕ2)
-  | tdConcat a1 a2 => tdConcat (td_open k s a1) (td_open k s a2)
+  | tdLitOut op1 ϕ1 op2 arg ret => tdLitOut op1 (qualifier_open (S (S k)) s ϕ1) op2 (open_value k s arg) (open_value k s ret)
+  | tdComp a1 a2 => tdComp (td_open k s a1) (td_open k s a2)
   | tdUnion a1 a2 => tdUnion (td_open k s a1) (td_open k s a2)
   | tdEx b ϕ a => tdEx b (qualifier_open (S k) s ϕ) (td_open (S k) s a)
   end.
@@ -80,10 +76,10 @@ Notation "e '^a^' s" := (td_open 0 s e) (at level 20).
 
 Fixpoint td_subst (k: atom) (s: value) (a : transducer): transducer :=
   match a with
-  | tdLitEps op ϕ => tdLitEps op (qualifier_subst k s ϕ)
   | tdLitId op ϕ => tdLitId op (qualifier_subst k s ϕ)
-  | tdLitPair op1 ϕ1 op2 ϕ2 => tdLitPair op1 (qualifier_subst k s ϕ1) op2 (qualifier_subst k s ϕ2)
-  | tdConcat a1 a2 => tdConcat (td_subst k s a1) (td_subst k s a2)
+  | tdLitOut op1 ϕ1 op2 arg ret =>
+      tdLitOut op1 (qualifier_subst k s ϕ1) op2 (value_subst k s arg) (value_subst k s ret)
+  | tdComp a1 a2 => tdComp (td_subst k s a1) (td_subst k s a2)
   | tdUnion a1 a2 => tdUnion (td_subst k s a1) (td_subst k s a2)
   | tdEx b ϕ a => tdEx b (qualifier_subst k s ϕ) (td_subst k s a)
   end.
@@ -93,12 +89,11 @@ Notation "'{' x ':=' s '}a'" := (td_subst x s) (at level 20, format "{ x := s }a
 (** Local closure *)
 
 Inductive lc_td : transducer -> Prop :=
-| lc_tdLitEps: forall op ϕ, lc_phi2 ϕ -> lc_td (tdLitEps op ϕ)
 | lc_tdLitId: forall op ϕ, lc_phi2 ϕ -> lc_td (tdLitId op ϕ)
-| lc_tdLitPair: forall op1 ϕ1 op2 ϕ2, lc_phi2 ϕ1 -> lc_phi2 ϕ2 -> lc_td (tdLitPair op1 ϕ1 op2 ϕ2)
-| lc_tdConcat : forall a1 a2, lc_td a1 -> lc_td a2 -> lc_td (tdConcat a1 a2)
+| lc_tdLitOut: forall op1 ϕ1 op2 (arg ret: value), lc_phi2 ϕ1 -> lc arg -> lc ret -> lc_td (tdLitOut op1 ϕ1 op2 arg ret)
+| lc_tdComp : forall a1 a2, lc_td a1 -> lc_td a2 -> lc_td (tdComp a1 a2)
 | lc_tdUnion : forall a1 a2, lc_td a1 -> lc_td a2 -> lc_td (tdUnion a1 a2)
-| lc_tdEx : forall b ϕ a (L : aset), lc_phi1 ϕ -> (forall x : atom, x ∉ L -> lc_td (a ^a^ x)) -> lc_td (tdEx b ϕ a)
+| lc_tdEx : forall b ϕ a (L : aset), (forall x : atom, x ∉ L -> lc_td (a ^a^ x)) -> lc_phi1 ϕ -> lc_td (tdEx b ϕ a)
 .
 
 (** Closed under free variable set *)

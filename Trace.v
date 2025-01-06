@@ -31,15 +31,17 @@ Inductive read_reduction : trace -> constant -> Prop :=
     read_reduction α n -> read_reduction (α ++ [ev{ op ~ c := c' }]) n.
 
 (** Trace reduction relation. Used in the premise of [STEffOp]. *)
-Inductive tr_reduction : trace -> effop -> constant -> constant -> Prop :=
-| TrPlus1: forall (α: trace) (n: nat), tr_reduction α op_plus_one n (S n)
-| TrMinus1: forall (α: trace) (n: nat), tr_reduction α op_minus_one (S n) n
-| TrEq0_0: forall (α: trace), tr_reduction α op_eq_zero 0 true
-| TrEq0_S: forall (α: trace) (n: nat), tr_reduction α op_eq_zero (S n) false
-| TrNatGen: forall (α: trace) (n: nat) (n': nat), tr_reduction α op_rannat n n'
-| TrBoolGen: forall (α: trace) (n: nat) (b: bool), tr_reduction α op_ranbool n b
-| TrWrite: forall (α: trace) (n: nat) (b: bool), tr_reduction α op_write n b
-| TrRead: forall (α: trace) (n' n: nat), read_reduction α n -> tr_reduction α op_read n' n.
+Inductive tr_reduction : trace -> effop -> constant -> trace -> constant -> Prop :=
+| TrPlus1: forall (α: trace) (n: nat), tr_reduction α op_plus_one n α (S n)
+| TrMinus1: forall (α: trace) (n: nat), tr_reduction α op_minus_one (S n) α n
+| TrEq0_0: forall (α: trace), tr_reduction α op_eq_zero 0 α true
+| TrEq0_S: forall (α: trace) (n: nat), tr_reduction α op_eq_zero (S n) α false
+| TrNatGen: forall (α: trace) (n: nat) (n': nat), tr_reduction α op_rannat n α n'
+| TrBoolGen: forall (α: trace) (n: nat) (b: bool), tr_reduction α op_ranbool n α b
+| TrWrite: forall (α: trace) (n: nat) (b: bool),
+    tr_reduction α op_write n (α ++ [ev{ op_write ~ n := b }]) b
+| TrRead: forall (α: trace) (n' n: nat),
+    read_reduction α n -> tr_reduction α op_read n' (α ++ [ev{ op_read ~ n' := n }]) n.
 
-Notation "α '⊧{' op '~' c1 '}⇓{' c '}' " := (tr_reduction α op c1 c)
-                                              (at level 30, format "α ⊧{ op ~ c1 }⇓{ c }", c1 constr, α constr).
+Notation "α '⊧{' op '~' c1 '}⇓{' β '}{' c '}' " := (tr_reduction α op c1 β c)
+                                                     (at level 30, format "α ⊧{ op ~ c1 }⇓{ β }{ c }", c1 constr, α constr, β constr).

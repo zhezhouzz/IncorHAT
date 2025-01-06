@@ -11,7 +11,9 @@ BasicTypingProp.v
 Qualifier.v
 ListCtx.v
 Transducer.v
+TransducerProp.v
 RefinementType.v
+RefinementTypeProp.v
 Denotation.v
 Instantiation.v
 InstantiationProp.v
