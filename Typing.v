@@ -78,6 +78,16 @@ Definition subtyping (Γ: listctx rty) (ρ1 ρ2: rty) : Prop :=
 
 Notation " Γ '⊢' τ1 '<⋮' τ2 " := (subtyping Γ τ1 τ2) (at level 20, τ1 constr, τ2 constr, Γ constr).
 
+Definition join (Γ: listctx rty) (ρ1 ρ2 ρ3: rty) : Prop :=
+  (* Assume [ρ1] and [ρ2] are valid [rty]s. *)
+  ⌊ ρ1 ⌋ = ⌊ ρ2 ⌋ /\ ⌊ ρ1 ⌋ = ⌊ ρ3 ⌋ /\
+    forall Γv, ctxRst Γ Γv ->
+          forall e, ⟦m{ Γv }r ρ3⟧ e <-> ⟦m{ Γv }r ρ1⟧ e \/ ⟦m{ Γv }r ρ2⟧ e.
+
+Notation " Γ '⊢' τ1 '<⋮' τ2 " := (subtyping Γ τ1 τ2) (at level 20, τ1 constr, τ2 constr, Γ constr).
+
+Notation " Γ '⊢' τ1 '⋮join' τ2 '⋮=' τ3" := (join Γ τ1 τ2 τ3) (at level 20, τ1 constr, τ2 constr, τ3 constr, Γ constr).
+
 (* The builtin typing relation (Δ) that our type system is parameterized over. *)
 Parameter builtin_typing_relation : effop -> rty -> Prop.
 
@@ -102,7 +112,7 @@ where
 (** Typing rules for values and terms. Values always have refinement types, while
   terms always have Hoare automata types. *)
 Inductive term_type_check : listctx rty -> tm -> rty -> Prop :=
-| TEPur: forall Γ v ρ,
+| TLift: forall Γ v ρ,
     Γ ⊢WF (ρ !<[ tdId ]>) ->
     Γ ⊢ v ⋮v ρ ->
     Γ ⊢ v ⋮t (ρ !<[ tdId ]>)
@@ -111,6 +121,12 @@ Inductive term_type_check : listctx rty -> tm -> rty -> Prop :=
     Γ ⊢ e ⋮t τ1 ->
     Γ ⊢ τ1 <⋮ τ2 ->
     Γ ⊢ e ⋮t τ2
+| TJoin: forall Γ e (τ1 τ2 τ3: rty),
+    Γ ⊢WF τ3 ->
+    Γ ⊢ e ⋮t τ1 ->
+    Γ ⊢ e ⋮t τ2 ->
+    Γ ⊢ τ1 ⋮join τ2 ⋮= τ3 ->
+    Γ ⊢ e ⋮t τ3
 | TLetEBase: forall Γ e1 e2 b1 ϕ1 A1 τ2 A2 (L: aset),
     (forall x, x ∉ L ->
           (Γ ++ [(x, {: b1 | ϕ1})]) ⊢ (e2 ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
@@ -243,6 +259,7 @@ Proof.
     cbn in H1.
     rewrite <- rty_erase_open_eq in H1.
     eauto.
+  - hauto using subtyping_preserves_basic_typing.
   - hauto using subtyping_preserves_basic_typing.
   - econstructor; eauto.
     instantiate_atom_listctx.
