@@ -93,10 +93,10 @@ Ltac my_set_solver :=
   match goal with
   | [H: context [∅ ∪ ?d] |- _ ] =>
       assert (∅ ∪ d = d) as Htmp by fast_set_solver;
-      rewrite Htmp in H; try clear Htmp; auto
+      rewrite Htmp in H; try clear Htmp; auto; try fast_set_solver
   | [ |- context [∅ ∪ ?d] ] =>
       assert (∅ ∪ d = d) as Htmp by fast_set_solver;
-      rewrite Htmp; try clear Htmp; auto
+      rewrite Htmp; try clear Htmp; auto; try fast_set_solver
   end ||
     mmy_set_solver2 || fast_set_solver!! || set_solver.
 

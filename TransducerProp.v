@@ -47,7 +47,7 @@ Lemma open_fv_td (a : transducer) (v : value): forall k,
 Proof.
   pose open_fv_qualifier.
   pose open_fv_value.
-  induction a; simpl; eauto; try my_set_solver.
+  induction a; simpl; intros; eauto; my_set_solver.
 Qed.
 
 Lemma open_fv_td' (a : transducer) (v : value): forall k,

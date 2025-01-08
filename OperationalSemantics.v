@@ -298,3 +298,15 @@ Proof.
   sinvert H.
   sinvert H0. simplify_list_eq. eauto.
 Qed.
+
+Lemma value_reduction_refl': forall (v1: value) v2, (∀ α, α ⊧ v1 ↪*{ α} v2) -> v2 = v1.
+Proof.
+  intros * H. specialize (H []).
+  sinvert H; easy.
+Qed.
+
+Lemma value_reduction_any_ctx: forall (v1: value) α, lc v1 -> α ⊧ v1 ↪*{ α} v1.
+Proof.
+  intros. econstructor; eauto.
+Qed.
+

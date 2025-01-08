@@ -24,6 +24,7 @@ Import Trace.
   variable, [bvar 0] is result variable. *)
 
 (** The transducer supports
+    - identity
     - ⟨x_ret ← f x_arg | 𝜙⟩/id
     - ⟨x_ret ← f x_arg | 𝜙⟩/⟨v_ret ← f v_arg⟩
     - T . T
@@ -31,6 +32,7 @@ Import Trace.
     - Ex x:b. T
  *)
 Inductive transducer : Type :=
+| tdId
 | tdLitId (op: effop) (ϕ: qualifier)
 | tdLitOut (op1: effop) (ϕ1: qualifier) (op2: effop) (arg2: value) (ret2: value)
 | tdComp (td1: transducer) (td2: transducer)
@@ -51,6 +53,7 @@ Global Hint Constructors transducer: core.
 (** free variables *)
 Fixpoint td_fv a : aset :=
   match a with
+  | tdId => ∅
   | tdLitId _ ϕ => qualifier_fv ϕ
   | tdLitOut _ ϕ1 _ arg ret => qualifier_fv ϕ1 ∪ fv_value arg ∪ fv_value ret
   | tdComp a1 a2 | tdUnion a1 a2 => td_fv a1 ∪ td_fv a2
@@ -64,6 +67,7 @@ Arguments td_stale /.
 (* The effect operator always has 2 bound variables *)
 Fixpoint td_open (k: nat) (s: value) (a : transducer): transducer :=
   match a with
+  | tdId => tdId
   | tdLitId op ϕ => tdLitId op (qualifier_open (S (S k)) s ϕ)
   | tdLitOut op1 ϕ1 op2 arg ret => tdLitOut op1 (qualifier_open (S (S k)) s ϕ1) op2 (open_value k s arg) (open_value k s ret)
   | tdComp a1 a2 => tdComp (td_open k s a1) (td_open k s a2)
@@ -76,6 +80,7 @@ Notation "e '^a^' s" := (td_open 0 s e) (at level 20).
 
 Fixpoint td_subst (k: atom) (s: value) (a : transducer): transducer :=
   match a with
+  | tdId => tdId
   | tdLitId op ϕ => tdLitId op (qualifier_subst k s ϕ)
   | tdLitOut op1 ϕ1 op2 arg ret =>
       tdLitOut op1 (qualifier_subst k s ϕ1) op2 (value_subst k s arg) (value_subst k s ret)
@@ -89,6 +94,7 @@ Notation "'{' x ':=' s '}a'" := (td_subst x s) (at level 20, format "{ x := s }a
 (** Local closure *)
 
 Inductive lc_td : transducer -> Prop :=
+| lc_tdId: lc_td tdId
 | lc_tdLitId: forall op ϕ, lc_phi2 ϕ -> lc_td (tdLitId op ϕ)
 | lc_tdLitOut: forall op1 ϕ1 op2 (arg ret: value), lc_phi2 ϕ1 -> lc arg -> lc ret -> lc_td (tdLitOut op1 ϕ1 op2 arg ret)
 | lc_tdComp : forall a1 a2, lc_td a1 -> lc_td a2 -> lc_td (tdComp a1 a2)

@@ -37,6 +37,7 @@ Definition valid_trace := Forall valid_evop.
 Instead of addtion, we can also use [max] for the subterms. *)
 Fixpoint td_measure (a: transducer) : nat :=
   match a with
+  | tdId => 1
   | ⟨ _ | _ ⟩/id | ⟨ _ | _ ⟩/⟨ _ | _ | _ ⟩ => 1
   | a1 ○ a2 | tdUnion a1 a2 => 1 + td_measure a1 + td_measure a2
   | tdEx _ _ a => 1 + td_measure a
@@ -48,22 +49,23 @@ Fixpoint langA (gas: nat) (a: transducer) (α: list evop) (β: list evop) : Prop
   | S gas' =>
       closed_td ∅ a /\ valid_trace α /\ valid_trace β /\
         (match a with
-        | ⟨ op | ϕ ⟩/id =>
-            exists (c_arg c_ret: constant),
-            denote_qualifier ({0 ~q> c_ret} ({1 ~q> c_arg} ϕ)) /\
-              α = [ev{op ~ c_arg := c_ret}] /\
-              β = [ev{op ~ c_arg := c_ret}]
-        | ⟨ op1 | ϕ ⟩/⟨ op2 | v_arg | v_ret ⟩ =>
-            exists (c_arg c_ret c_arg' c_ret': constant),
-            v_arg = c_arg' -> v_ret = c_ret' ->
-            denote_qualifier ({0 ~q> c_ret} ({1 ~q> c_arg} ϕ)) /\
-              α = [ev{op1 ~ c_arg := c_ret}] /\
-              β = [ev{op2 ~ c_arg' := c_ret'}]
-        | a1 ○ a2 => exists γ, langA gas' a1 α γ /\ langA gas' a2 γ β
-        | tdUnion a1 a2 => langA gas' a1 α β ∨ langA gas' a2 α β
-        | tdEx b ϕ a =>
-            exists c, ∅ ⊢t c ⋮v b /\ denote_qualifier ({0 ~q> c} ϕ) /\ langA gas' (a ^a^ c) α β
-        end)
+         | tdId => α = β
+         | ⟨ op | ϕ ⟩/id =>
+             exists (c_arg c_ret: constant),
+             denote_qualifier ({0 ~q> c_ret} ({1 ~q> c_arg} ϕ)) /\
+               α = [ev{op ~ c_arg := c_ret}] /\
+               β = [ev{op ~ c_arg := c_ret}]
+         | ⟨ op1 | ϕ ⟩/⟨ op2 | v_arg | v_ret ⟩ =>
+             exists (c_arg c_ret c_arg' c_ret': constant),
+             v_arg = c_arg' -> v_ret = c_ret' ->
+             denote_qualifier ({0 ~q> c_ret} ({1 ~q> c_arg} ϕ)) /\
+               α = [ev{op1 ~ c_arg := c_ret}] /\
+               β = [ev{op2 ~ c_arg' := c_ret'}]
+         | a1 ○ a2 => exists γ, langA gas' a1 α γ /\ langA gas' a2 γ β
+         | tdUnion a1 a2 => langA gas' a1 α β ∨ langA gas' a2 α β
+         | tdEx b ϕ a =>
+             exists c, ∅ ⊢t c ⋮v b /\ denote_qualifier ({0 ~q> c} ϕ) /\ langA gas' (a ^a^ c) α β
+         end)
   end.
 
 Notation "'a⟦' a '⟧' " := (langA (td_measure a) a) (at level 20, format "a⟦ a ⟧", a constr).
@@ -74,9 +76,9 @@ Notation "'a⟦' a '⟧' " := (langA (td_measure a) a) (at level 20, format "a�
 Instead of addtion, we can also use [max] for the subterms. *)
 Fixpoint rty_measure (ρ: rty) : nat :=
   match ρ with
-  | rtyBase _ _ _ => 1
-  | ρ !<[ _ ]> => 1 + rty_measure ρ
+  | rtyOver _ _ | rtyUnder _ _ => 1
   | ρ ⇨ τ => 1 + rty_measure ρ + rty_measure τ
+  | ρ !<[ _ ]> => 1 + rty_measure ρ
   end.
 
 (** Refinement type and Hoare automata type denotation (Fig. 7) *)
@@ -85,6 +87,9 @@ other words, it is the "fuel" to get around Coq's termination checker. As long
 as it is no less than [rty_measure] and [rty_measure], the denotation will not
 hit bottom. Note that this is _different_ from the step used in step-indexed
 logical relation. *)
+
+(* Definition pure_tm (e: tm) := forall e' α β, α ⊧ e ↪*{β} e' -> α = β. *)
+
 Fixpoint rtyR (gas: nat) (ρ: rty) (e: tm) : Prop :=
   match gas with
   | 0 => False
@@ -92,19 +97,55 @@ Fixpoint rtyR (gas: nat) (ρ: rty) (e: tm) : Prop :=
       ∅ ⊢t e ⋮t ⌊ ρ ⌋ /\ closed_rty ∅ ρ /\
         match ρ with
         | {: b | ϕ} =>
-            forall (v: value) α, α ⊧ e ↪*{α} v -> denote_qualifier (ϕ ^q^ v)
-        | [: b | ϕ] !<[ a ]> =>
-            forall (v: value) α β,
-              denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β ->
-              α ⊧ e ↪*{β} v
-        | (ρx ⇨ τ) !<[ a ]> =>
-            forall (α β: list evop),
-              a⟦ a ⟧ α β ->
-              exists (v: value), α ⊧ e ↪*{β} v /\
-                (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x))
-        | ({:_|_})!<[_]> | (_!<[_]>)!<[_]> | [: _ | _] | _⇨_ => False
+            forall (v: value), (forall α, α ⊧ e ↪*{α} v) -> denote_qualifier (ϕ ^q^ v)
+        | [: b | ϕ] =>
+            forall (v: value), rtyR gas' {: b | ϕ} v -> (forall α, α ⊧ e ↪*{α} v)
+        | ρx ⇨ τ =>
+            exists (v: value), (forall α, α ⊧ e ↪*{α} v) /\
+                            (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x))
+        | ρ !<[ a ]> =>
+            match ρ with
+            | {: _ | _} | _ !<[ _ ]> => False
+            | [: b | ϕ] =>
+                forall α β (v: value),
+                  a⟦ (a ^a^ v) ⟧ α β -> rtyR gas' {: b | ϕ} v -> α ⊧ e ↪*{β} v
+            | ρx ⇨ τ =>
+                forall α β, a⟦ a ⟧ α β ->
+                       exists (v: value), rtyR gas' (ρx ⇨ τ) v /\ α ⊧ e ↪*{β} v
+            end
         end
   end.
+
+
+        (*     match ρ with *)
+        (*     | {: _ | _} => False *)
+        (*     | [: b | ϕ] => *)
+        (*         forall (v: value) α β, *)
+        (*           denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β -> *)
+        (*           α ⊧ e ↪*{β} v *)
+        (*     | ρx ⇨ τ => *)
+        (*         forall (v: value) α β, *)
+        (*           denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β -> *)
+        (*           α ⊧ e ↪*{β} v *)
+
+        (*         exists (v: value), (forall α, multistep α e α v) /\ *)
+        (*                         (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x)) *)
+
+        (*     forall (e': tm) α β, *)
+        (*       denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β -> *)
+        (*       α ⊧ e ↪*{β} v *)
+        (* | [: b | ϕ]!<[ a ]> => *)
+        (*     forall (v: value) α β, *)
+        (*       denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β -> *)
+        (*       α ⊧ e ↪*{β} v *)
+        (* | ρx ⇨ τ => *)
+        (*     exists (v: value), (forall α, multistep α e α v) /\ *)
+        (*                     (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x)) *)
+        (* | ρx !⇨ τ !<[ a ]> => *)
+        (*     forall (α β: list evop), *)
+        (*       a⟦ a ⟧ α β -> *)
+        (*       exists (v: value), α ⊧ e ↪*{β} v /\ *)
+        (*         (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x)) *)
 
 Notation "'⟦' τ '⟧' " := (rtyR (rty_measure τ) τ) (at level 20, format "⟦ τ ⟧", τ constr).
 
@@ -230,13 +271,13 @@ Proof.
   my_set_solver.
 Qed.
 
-Lemma mk_top_denote_rty (b : base_ty) (v : value) :
-  ∅ ⊢t v ⋮v b ->
-  ⟦ mk_top b ⟧ v.
-Proof.
-  intros.
-  split; [| split]; simpl; eauto using mk_top_closed_rty.
-Qed.
+(* Lemma mk_top_denote_rty (b : base_ty) (v : value) : *)
+(*   ∅ ⊢t v ⋮v b -> *)
+(*   ⟦ mk_top b ⟧ v. *)
+(* Proof. *)
+(*   intros. *)
+(*   split; [| split]; simpl; eauto using mk_top_closed_rty. *)
+(* Qed. *)
 
 Lemma mk_eq_constant_closed_rty c : closed_rty ∅ (mk_eq_constant c).
 Proof.
@@ -248,7 +289,9 @@ Lemma mk_eq_constant_denote_rty c:
   ⟦ mk_eq_constant c ⟧ c.
 Proof.
   simpl. split; [| split]; cbn; eauto using mk_eq_constant_closed_rty.
-  hauto using value_reduction_refl.
+  intros.
+  pose value_reduction_any_ctx.
+  destruct v; simpl in *; try hauto.
 Qed.
 
 Lemma closed_base_rty_qualifier_and B ϕ1 ϕ2 Γ:
@@ -391,26 +434,65 @@ Proof.
   intros [Ht Hr]. intros. inversion H. simp_hyps; subst.
   simpl. intuition.
   qauto using basic_typing_tm_unique.
-  eapply H2; eauto.
 Qed.
 
-Lemma rtyR_refine τ e1 e2 :
-  tm_refine e1 e2 ->
-  ⟦ τ ⟧ e2 ->
-  ⟦ τ ⟧ e1.
+Definition is_tm_rty (τ: rty) :=
+  match τ with
+  | [: _ | _] | _ !<[ _ ]> | _ ⇨ _ => True
+  | {: _ | _ } => False
+  end.
+
+Lemma rtyR_refine_aux n: forall τ e1 e2,
+    rty_measure τ <= n ->
+    is_tm_rty τ ->
+    tm_refine e1 e2 ->
+    rtyR n τ e1 ->
+    rtyR n τ e2.
 Proof.
-  intros [Ht Hr].
-  assert (rty_measure τ <= rty_measure τ) by reflexivity.
-  revert H. generalize (rty_measure τ) at 2 3 4 as n.
-  intros n. revert τ.
-  induction n. easy.
-  simpl. intuition.
+  induction n; intros τ e1 e2 Hm Hunder [Ht Hr] H; simpl in *;
+    destruct τ; simpl in *; eauto; try easy.
   qauto using basic_typing_tm_unique.
-  destruct τ; eauto.
-  - destruct ou; eauto. simp_hyps. intros. eapply H3; eauto. eapply Hr.
-    assert ([] ⊧ e1 ↪*{ [] } v). rewrite H3. apply multistep_refl. admit.
-    apply Hr in H2.
-  simpl in *. intuition.
-  apply IHn; eauto. lia.
-  apply IHn; eauto. lia.
+  intuition.
+  - qauto using basic_typing_tm_unique.
+  - destruct H2 as (v & Hv & Hvv); subst.
+    exists v. intuition. eapply IHn; eauto. admit. admit. admit.
+  - intuition. qauto using basic_typing_tm_unique.
+    destruct τ; eauto.
+    intros. edestruct H2 as (v & Hv & Hvv); eauto.
+Admitted.
+
+Lemma rtyR_refine: forall τ e1 e2,
+  is_tm_rty τ ->
+  tm_refine e1 e2 ->
+  ⟦ τ ⟧ e1 ->
+  ⟦ τ ⟧ e2.
+Proof.
+  pose rtyR_refine_aux. eauto.
 Qed.
+
+(*   econstructor. *)
+(*   qauto using basic_typing_tm_unique. *)
+(*   simpl. intuition. *)
+
+(*   easy. *)
+
+(*   easy. *)
+(*   intro Hunder. intros [Ht Hr]. *)
+(*   assert (rty_measure τ <= rty_measure τ) by reflexivity. *)
+(*   revert H. generalize (rty_measure τ) at 2 3 4 as n. *)
+(*   intros n. revert Hunder. revert e2. revert τ. *)
+(*   induction n. easy. *)
+(*   simpl. intuition. *)
+(*   qauto using basic_typing_tm_unique. *)
+(*   destruct τ; eauto. *)
+(*   - inversion Hunder. *)
+(*   - intros. edestruct H3; eauto. intuition. *)
+(*     eexists. intuition; eauto. *)
+(*     apply IHn; eauto. lia. *)
+(*   - intros. eapply H3; eauto. eapply Hr. *)
+(*     assert ([] ⊧ e1 ↪*{ [] } v). rewrite H3. apply multistep_refl. admit. *)
+(*     apply Hr in H2. *)
+(*     simpl in *. intuition. *)
+(*     apply IHn; eauto. lia. *)
+(*     apply IHn; eauto. lia. *)
+(* Qed. *)

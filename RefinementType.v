@@ -18,54 +18,66 @@ Import ListCtx.
 Import List.
 Import Transducer.
 
-Inductive ou := Over | Under.
-
 (** Refinement types (t in Fig. 4) *)
 Inductive rty : Type :=
-| rtyBase (ou: ou) (b: base_ty) (ϕ: qualifier)
-| rtyTd (ρ: rty) (td: transducer)
-| rtyArr (ρ: rty) (τ: rty).
+| rtyOver (b: base_ty) (ϕ: qualifier)
+| rtyUnder (b: base_ty) (ϕ: qualifier)
+| rtyArr (ρ: rty) (τ: rty)
+| rtyTd (ρ: rty) (τ: transducer).
 
-Notation "'{:' b '|' ϕ '}'" := (rtyBase Over b ϕ) (at level 5, format "{: b | ϕ }", b constr, ϕ constr).
-Notation "'[:' b '|' ϕ ']'" := (rtyBase Under b ϕ) (at level 5, format "[: b | ϕ ]", b constr, ϕ constr).
-Notation "ρ '!<[' a ']>'" := (rtyTd ρ a) (at level 5, format "ρ !<[ a ]>", ρ constr, a constr).
-Notation "ρ '⇨' τ " :=
+Notation "'{:' b '|' ϕ '}'" := (rtyOver b ϕ) (at level 5, format "{: b | ϕ }", b constr, ϕ constr).
+Notation "'[:' b '|' ϕ ']' " := (rtyUnder b ϕ) (at level 5, format "[: b | ϕ ]", b constr, ϕ constr).
+Notation "ρ '⇨' τ" :=
   (rtyArr ρ τ) (at level 80, format "ρ ⇨ τ", right associativity, ρ constr, τ constr).
+Notation "ρ '!<[' a ']>'" :=
+  (rtyTd ρ a) (at level 80, format "ρ !<[ a ]>", right associativity, ρ constr, a constr).
 
 (** Over-Base type and function type is *pure*, which means it can be paramater of a function type; also can be introduced into type context *)
 Definition pure_rty (τ: rty) :=
   match τ with
-  | rtyBase Over _ _ => True
-  | rtyBase Under _ _ => False
-  | rtyTd _ _ => False
-  | rtyArr ρ1 ρ2 => True
+  | {: _ | _ } | _ ⇨ _  => True
+  | [: _ | _ ] | _ !<[ _ ]> => False
+  end.
+
+(** Under-Base type and function type is td-able, which means it can be refined with a transducer. *)
+Definition tdable_rty (τ: rty) :=
+  match τ with
+  | [: _ | _ ] | _ ⇨ _  => True
+  | {: _ | _ } | _ !<[ _ ]> => False
   end.
 
 (** Fine-defined Refinement type:
     - { b | ϕ }
+    - (τ1 ⇨ τ2) where τ1 and τ2 is fine-defined, τ1 is pure
     - [ b | ϕ ] ! T
-    - (τ1 ⇨ τ2) ! T where τ1 ⇨ τ2 is fine-defined
-    - τ1 ⇨ τ2 where τ1 and τ2 is fine-defined, τ1 is pure
+    - (τ1 ⇨ τ2) ! T where τ1 and τ2 is fine-defined, τ1 is pure
  *)
 Fixpoint fine_rty (τ: rty) :=
   match τ with
-  | rtyBase Over _ _ => True
-  | rtyBase Under _ _ => False
-  | rtyTd (rtyBase Under _ _) _ => True
-  | rtyTd (rtyArr ρ τ) _ => pure_rty ρ /\ fine_rty ρ /\ fine_rty τ
-  | rtyTd _ _ => False
+  | rtyOver _ _ => True
+  | rtyUnder _ _ => True
   | rtyArr ρ τ => pure_rty ρ /\ fine_rty ρ /\ fine_rty τ
+  | rtyTd ρ _ => tdable_rty ρ /\ fine_rty ρ
   end.
 
 Global Hint Constructors rty: core.
+
+Definition flap_rty (τ: rty) :=
+  match τ with
+  | [: b | ϕ ] => {: b | ϕ }
+  | {: b | ϕ } => [: b | ϕ ]
+  | ρ ⇨ τ => ρ ⇨ τ
+  | ρ !<[ a ]> => ρ !<[ a ]>
+  end.
 
 (** Type erasure (Fig. 5) *)
 
 Fixpoint rty_erase ρ : ty :=
   match ρ with
-  | rtyBase _ b ϕ => b
+  | {: b | ϕ } => b
+  | [: b | ϕ ] => b
   | ρ ⇨ τ => (rty_erase ρ) ⤍ (rty_erase τ)
-  | ρ !<[ _ ]> => rty_erase ρ
+  | ρ !<[ _ ]> => (rty_erase ρ)
   end.
 
 Notation " '⌊' ty '⌋' " := (rty_erase ty) (at level 5, format "⌊ ty ⌋", ty constr).
@@ -79,7 +91,8 @@ Notation " '⌊' Γ '⌋*' " := (ctx_erase Γ) (at level 5, format "⌊ Γ ⌋*"
 
 Fixpoint rty_fv ρ : aset :=
   match ρ with
-  | rtyBase _ _ ϕ => qualifier_fv ϕ
+  | {: _ | ϕ } => qualifier_fv ϕ
+  | [: _ | ϕ ] => qualifier_fv ϕ
   | ρ ⇨ τ => rty_fv ρ ∪ rty_fv τ
   | ρ !<[ a ]> => rty_fv ρ ∪ td_fv a
   end.
@@ -90,9 +103,10 @@ Arguments rty_stale /.
 
 Fixpoint rty_open (k: nat) (s: value) (ρ: rty) : rty :=
   match ρ with
-  | rtyBase ou b ϕ => rtyBase ou b (qualifier_open (S k) s ϕ)
-  | ρ !<[ a ]> => (rty_open k s ρ) !<[ td_open (S k) s a ]>
+  | {: b | ϕ } => {: b | qualifier_open (S k) s ϕ }
+  | [: b | ϕ ] => [: b | qualifier_open (S k) s ϕ ]
   | ρ ⇨ τ => (rty_open k s ρ) ⇨ (rty_open (S k) s τ)
+  | ρ !<[ a ]> => (rty_open k s ρ) !<[ td_open (S k) s a ]>
   end.
 
 Notation "'{' k '~r>' s '}' e" := (rty_open k s e) (at level 20, k constr).
@@ -100,25 +114,32 @@ Notation "e '^r^' s" := (rty_open 0 s e) (at level 20).
 
 Fixpoint rty_subst (k: atom) (s: value) (ρ: rty) : rty :=
   match ρ with
-  | rtyBase ou b ϕ => rtyBase ou b (qualifier_subst k s ϕ)
-  | ρ !<[ a ]> => (rty_subst k s ρ) !<[ td_subst k s a ]>
+  | {: b | ϕ} => {: b | qualifier_subst k s ϕ}
+  | [: b | ϕ] => [: b | qualifier_subst k s ϕ]
   | ρ ⇨ τ => (rty_subst k s ρ) ⇨ (rty_subst k s τ)
+  | ρ !<[ a ]> => (rty_subst k s ρ) !<[ td_subst k s a ]>
   end.
 
 Notation "'{' x ':=' s '}r'" := (rty_subst x s) (at level 20, format "{ x := s }r", x constr).
 
 (** Local closure *)
-(** NOTE: all (L: aset) should be the first hypothesis *)
+(** NOTE: To alaign with denotation, we assume the function type doesn't appear in transduce. *)
+(** NOTE: all (L: aset) should be the first hypothesis. *)
 Inductive lc_rty : rty -> Prop :=
-| lc_rtyBase: forall ou b ϕ, lc_phi1 ϕ -> fine_rty (rtyBase ou b ϕ) -> lc_rty (rtyBase ou b ϕ)
-| lc_rtyTd: forall ρ td (L : aset),
-    (forall x : atom, x ∉ L -> lc_td (td ^a^ x)) ->
-    fine_rty (rtyTd ρ td) -> lc_rty ρ ->
-    lc_rty (rtyTd ρ td)
+| lc_rtyOver: forall b ϕ, lc_phi1 ϕ -> fine_rty {: b | ϕ} -> lc_rty {: b | ϕ}
+| lc_rtyUnder: forall b ϕ, lc_phi1 ϕ -> fine_rty [: b | ϕ] -> lc_rty [: b | ϕ]
 | lc_rtyArr: forall ρ τ (L : aset),
     (forall x : atom, x ∉ L -> lc_rty (τ ^r^ x)) ->
     fine_rty (ρ ⇨ τ) -> lc_rty ρ ->
-    lc_rty (ρ ⇨ τ).
+    lc_rty (ρ ⇨ τ)
+| lc_rtyTd: forall b ϕ a (L : aset),
+    (forall x : atom, x ∉ L -> lc_td (a ^a^ x)) ->
+    fine_rty ([:b | ϕ]!<[a]>) -> lc_rty [:b | ϕ] ->
+    lc_rty ([:b | ϕ]!<[a]>)
+| lc_rtyTdArr: forall ρ τ a (L : aset),
+    lc_td a ->
+    fine_rty ((ρ ⇨ τ)!<[a]>) -> lc_rty (ρ ⇨ τ) ->
+    lc_rty ((ρ ⇨ τ)!<[a]>).
 
 Lemma lc_rty_fine: forall τ, lc_rty τ -> fine_rty τ.
 Proof.
@@ -154,8 +175,8 @@ Proof.
   induction 1; eauto.
 Qed.
 
-(** Shorthands *)
-Definition mk_eq_constant c := {: ty_of_const c | b0:c= c }.
-Definition mk_bot ty := {: ty | mk_q_under_bot }.
-Definition mk_top ty := {: ty | mk_q_under_top }.
-Definition mk_eq_var ty (x: atom) := {: ty | b0:x= x }.
+(** Shorthands, used in typing rules *)
+Definition mk_eq_constant c := [: ty_of_const c | b0:c= c ].
+Definition mk_bot ty := [: ty | mk_q_under_bot ].
+Definition mk_top ty := [: ty | mk_q_under_top ].
+Definition mk_eq_var ty (x: atom) := [: ty | b0:x= x ].
