@@ -104,6 +104,7 @@ Theorem fundamental_combined:
     Γ ⊢ e ⋮t τ ->
     forall Γv, ctxRst Γ Γv -> ⟦ m{ Γv }r τ ⟧ (m{ Γv }t e)).
 Proof.
+  pose value_reduction_any_ctx as HPureStep.
   intros HWFbuiltin.
   apply value_term_type_check_mutind.
   (* [TSubPP] *)
@@ -200,12 +201,23 @@ Proof.
       eapply_eq msubst_preserves_closed_rty_empty; eauto.
       repeat msubst_simp.
     }
-    admit.
+    destruct ρ; repeat msubst_simp.
+    + admit.
+    + intros. simpl in *. simp_hyps. assert (α = β). admit. subst. apply H6. apply H3.
+      intros. apply value_reduction_any_ctx. basic_typing_regular_simp.
+    + intros. exists ((m{Γv}v) v). simpl in *. simp_hyps. intuition.
+      * exists ((m{Γv}v) v). intuition. apply value_reduction_any_ctx. admit.
+      * assert (α = β). admit. subst. apply value_reduction_any_ctx. basic_typing_regular_simp.
+    + admit.
   (* [TSub] *)
   - intros Γ e τ1 τ2 HWFτ2 _ HDτ1 Hsub Γv HΓv. specialize (HDτ1 _ HΓv).
     apply Hsub in HDτ1; auto.
+  (* [TJoin] *)
+  - unfold join. intros Γ e τ1 τ2 τ3 HWFτ3 _ HDτ1 _ HDτ2 (_ & _ & Hjoin) Γv HΓv.
+    specialize (HDτ1 _ HΓv). specialize (HDτ2 _ HΓv).
+    rewrite Hjoin; eauto.
   (* [TLetE] *)
-  - intros Γ e_x e ρx ρ A A' B L HWF HTe_x HDe_x HTe HDe Γv HΓv.
+  - intros Γ e_x e ρx ρ A A' B L HTe_x HDe_x HWF HTe HDe Γv HΓv.
     ospecialize* HDe_x; eauto. repeat msubst_simp.
     split; [| split]. {
       assert (Γ ⊢ tlete e_x e ⋮t (<[ A ] ρ [ B ]>)) by eauto using term_type_check.

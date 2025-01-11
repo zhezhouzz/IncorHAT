@@ -52,7 +52,7 @@ Inductive multistep : list evop -> tm -> list evop -> tm -> Prop :=
 
 Notation "α '⊧' t1 '↪*{' β '}' t2" := (multistep α t1 β t2) (at level 60, t1 constr, β constr).
 
-Definition pure_multistep (t1 t2: tm) := forall α, α ⊧ t1 ↪*{ [] } t2.
+Definition pure_multistep (t1 t2: tm) := forall α, α ⊧ t1 ↪*{ α } t2.
 
 Notation "t1 '↪*' t2" := (pure_multistep t1 t2) (at level 60, t1 constr, t2 constr).
 
@@ -310,3 +310,42 @@ Proof.
   intros. econstructor; eauto.
 Qed.
 
+(** NOTE: reduction lemmas for underapproximation *)
+
+Lemma reduction_nest_tlete: forall e,
+  forall α β (v: value), α ⊧ tlete e (vbvar 0) ↪*{ β} v <-> α ⊧ e ↪*{ β} v.
+Proof.
+  intros e. split; intros.
+  - apply reduction_tlete in H. simp_hyps. simpl in *.
+    apply value_reduction_refl in H1.
+    simp_hyps. subst. eauto.
+  - eapply reduction_tlete'; eauto. simpl.
+    apply (value_reduction_any_ctx v); eauto.
+    apply multi_step_regular2 in H; eauto.
+Qed.
+
+Lemma reduction_tletapp_lam:  forall T e1 v2 e α β (v : value),
+    α ⊧ tletapp (vlam T e1) v2 e ↪*{ β} v <->
+      (lc v2 /\ lc (vlam T e1) /\ α ⊧ tlete (e1 ^t^ v2) e ↪*{ β} v).
+Proof.
+  split; intros.
+  - inversion H; subst. inversion H0; subst; eauto.
+    intuition; eauto. lc_solver.
+  - simp_hyps. eapply_eq multistep_step; eauto.
+    apply multi_step_regular1 in H2; eauto.
+    rewrite lete_lc_body in H2; simp_hyps; eauto.
+    econstructor; eauto. lc_solver.
+Qed.
+
+Lemma reduction_tletapp_fix:  forall T_f (v_x: value) (e1: tm) e (v : value) α β,
+      α ⊧ tletapp (vfix T_f (vlam T_f e1)) v_x e ↪*{ β} v <->
+        (lc v_x /\ α ⊧ tletapp ((vlam T_f e1) ^v^ v_x) (vfix T_f (vlam T_f e1)) e ↪*{ β} v).
+Proof.
+  split; intros.
+  - inversion H; subst. inversion H0; subst; eauto.
+    (* intuition; eauto. lc_solver. *)
+  - simp_hyps. eapply_eq multistep_step; eauto.
+    apply multi_step_regular in H0; simp_hyps; eauto.
+    econstructor; eauto. rewrite letapp_lc_body in H0. simp_hyps.
+    lc_solver. lc_solver.
+Qed.

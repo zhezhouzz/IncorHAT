@@ -384,7 +384,7 @@ Qed.
 (* Qed. *)
 
 Lemma denotation_application_lam Tx T ρ τ e :
-  Tx ⤍ T = ⌊ ρ⇨τ ⌋ ->
+  is_tm_rty τ -> Tx ⤍ T = ⌊ ρ⇨τ ⌋ ->
   ∅ ⊢t vlam Tx e ⋮t Tx ⤍ T ->
   closed_rty ∅ (ρ⇨τ) ->
   (forall (v_x : value),
@@ -392,27 +392,28 @@ Lemma denotation_application_lam Tx T ρ τ e :
       ⟦τ ^r^ v_x⟧ (e ^t^ v_x)) ->
   (⟦ρ⇨τ⟧) (vlam Tx e).
 Proof.
-  intros He Ht Hc H.
+  intros Htm He Ht Hc H.
   split; [| split]; eauto. sinvert He; eauto.
-
-Admitted.
-(*   intros v_x HDv_x. *)
-(*   repeat rewrite_measure_irrelevant. *)
-(*   specialize (H v_x HDv_x). *)
-(*   eapply rtyR_refine; cycle 1. eauto. *)
-
-(*   apply rtyR_typed_closed in HDv_x. simp_hyps. sinvert H0. *)
-(*   split; intros. *)
-(*   - apply rtyR_typed_closed in H. destruct H as [H _]. *)
-(*     repeat esplit. eauto. *)
-(*     rewrite <- rty_erase_open_eq. *)
-(*     sinvert He. *)
-(*     eapply mk_app_e_v_has_type; eauto. *)
-(*   - eapply reduction_letapplam; eauto using basic_typing_regular_value. *)
-(* Qed. *)
+  exists (vlam Tx e). split. pure_multistep_tac. intros v_x HDv_x.
+  repeat rewrite_measure_irrelevant.
+  specialize (H v_x HDv_x).
+  eapply rtyR_refine; cycle 1; eauto.
+  apply rtyR_typed_closed in HDv_x. simp_hyps. sinvert H0.
+  split; intros.
+  - apply rtyR_typed_closed in H. destruct H as [H _].
+    repeat esplit; eauto.
+    rewrite <- rty_erase_open_eq.
+    sinvert He.
+    eapply mk_app_e_v_has_type; eauto.
+  - apply reduction_mk_app_e_v'.
+    rewrite reduction_tletapp_lam.
+    intuition. basic_typing_regular_simp. basic_typing_regular_simp.
+    rewrite reduction_nest_tlete; eauto.
+  - rewrite is_tm_rty_open; eauto.
+Qed.
 
 Lemma denotation_application_fixed (Tx : base_ty) T ϕ τ e :
-  T = ⌊ τ ⌋ ->
+  is_tm_rty τ -> T = ⌊ τ ⌋ ->
   ∅ ⊢t vfix (Tx ⤍ T) (vlam (Tx ⤍ T) e) ⋮v Tx ⤍ T ->
   closed_rty ∅ ({:Tx|ϕ}⇨τ) ->
   (forall (v_x : value),
@@ -421,60 +422,56 @@ Lemma denotation_application_fixed (Tx : base_ty) T ϕ τ e :
         ((vlam (Tx ⤍ T) e) ^v^ v_x)) ->
   ⟦{:Tx | ϕ}⇨τ⟧ (vfix (Tx ⤍ T) (vlam (Tx ⤍ T) e)).
 Proof.
-  intros He Ht Hc Hlam.
+  intros Htm He Ht Hc Hlam.
   split; [| split]; eauto. subst; eauto.
-Admitted.
-(*   intros v_x HDc. *)
-(*   repeat rewrite_measure_irrelevant. *)
-(*   assert (exists c, v_x = vconst c) as H. { *)
-(*     apply rtyR_typed_closed in HDc. *)
-(*     destruct HDc as [H _]. sinvert H. *)
-(*     eauto using basic_typing_base_canonical_form. *)
-(*   } *)
-(*   destruct H as [c ->]. *)
-(*   induction c using (well_founded_induction constant_lt_well_founded). *)
-(*   specialize (Hlam c HDc). *)
-(*   destruct Hlam as (HTlam&HClam&HDlam). *)
-(*   specialize (HDlam (vfix (Tx ⤍ T) (vlam (Tx ⤍ T) e))). *)
-(*   repeat rewrite_measure_irrelevant. *)
-(*   rewrite open_rty_idemp in HDlam by eauto using lc. *)
-(*   eapply rtyR_refine; cycle 1. *)
-(*   apply HDlam. *)
-(*   split; [| split]. *)
-(*   simpl. cbn. unfold erase, rty_erase_ in He. rewrite <- He. eauto. *)
-(*   sinvert HClam. econstructor. sinvert H0. eauto. my_set_solver. *)
-(*   intros v_y HDv_y. *)
-(*   repeat rewrite_measure_irrelevant. *)
-(*   assert (exists y, v_y = vconst y). { *)
-(*     apply rtyR_typed_closed in HDv_y. *)
-(*     destruct HDv_y as [HTv_y _]. sinvert HTv_y. *)
-(*     eauto using basic_typing_base_canonical_form. *)
-(*   } *)
-(*   destruct H0 as (y&->). *)
-(*   destruct HDv_y as (HTy&_&Hy). *)
-(*   ospecialize* (Hy _ []); eauto. destruct Hy as [_ Hy]. *)
-(*   rewrite qualifier_and_open in Hy. *)
-(*   rewrite denote_qualifier_and in Hy. *)
-(*   simp_hyps. *)
-(*   apply H; eauto. *)
-(*   (* lemma? *) *)
-(*   apply rtyR_typed_closed in HDc. simp_hyps. *)
-(*   split; [| split]; eauto. *)
-(*   intros. apply value_reduction_refl in H4. simp_hyps. *)
-(*   intuition. *)
-
-(*   split; intros. *)
-(*   - subst. cbn in HTlam. *)
-(*     repeat esplit. *)
-(*     eapply mk_app_e_v_has_type; eauto. *)
-(*     rewrite <- rty_erase_open_eq. *)
-(*     eapply mk_app_e_v_has_type; eauto. *)
-(*     apply rtyR_typed_closed in HDc. destruct HDc as [HTc _]. *)
-(*     sinvert HTc. eauto. *)
-(*   - apply reduction_mk_app_e_v in H0. *)
-(*     sinvert H0. sinvert H1. simplify_list_eq. *)
-(*     apply reduction_mk_app_e_v' in H2. *)
-(*     eauto. *)
-(*     eauto using basic_typing_regular_value. *)
-(* Qed. *)
-
+  exists (vfix (Tx ⤍ T) (vlam (Tx ⤍ T) e)). split. pure_multistep_tac. intros v_x HDc.
+  repeat rewrite_measure_irrelevant.
+  assert (exists c, v_x = vconst c) as H. {
+    apply rtyR_typed_closed in HDc.
+    destruct HDc as [H _]. sinvert H.
+    eauto using basic_typing_base_canonical_form.
+  }
+  destruct H as [c ->].
+  induction c using (well_founded_induction constant_lt_well_founded).
+  specialize (Hlam c HDc).
+  destruct Hlam as (HTlam & HClam & (_ & _ & HDlam)).
+  specialize (HDlam (vfix (Tx ⤍ T) (vlam (Tx ⤍ T) e))). subst.
+  repeat rewrite_measure_irrelevant.
+  rewrite open_rty_idemp in HDlam by eauto using lc.
+  eapply rtyR_refine; cycle 1.
+  2: {
+    apply HDlam.
+    split; [| split]; eauto.
+    - sinvert HClam. econstructor. sinvert H0. eauto. my_set_solver.
+    - exists (vfix (Tx ⤍ ⌊τ⌋) (vlam (Tx ⤍ ⌊τ⌋) e)). split. pure_multistep_tac.
+      intros v_y HDv_y.
+      repeat rewrite_measure_irrelevant.
+      assert (exists y, v_y = vconst y). {
+        apply rtyR_typed_closed in HDv_y.
+        destruct HDv_y as [HTv_y _]. sinvert HTv_y.
+        eauto using basic_typing_base_canonical_form.
+      }
+      destruct H0 as (y&->).
+      destruct HDv_y as (HTy&_&Hy).
+      assert (∀ α : list evop, α ⊧ y ↪*{ α} y) as Htmp by pure_multistep_tac.
+      specialize (Hy y Htmp).
+      rewrite qualifier_and_open in Hy.
+      rewrite denote_qualifier_and in Hy.
+      simp_hyps.
+      apply H; eauto.
+      apply denot_const_overrty; eauto. apply rtyR_typed_closed in HDc. simp_hyps; eauto.
+  }
+  split; intros.
+  - subst. cbn in HTlam.
+    repeat esplit.
+    eapply mk_app_e_v_has_type; eauto.
+    + apply rtyR_typed_closed in HDc. destruct HDc as [HTc _].
+      sinvert HTc. eauto.
+    + eapply mk_app_e_v_has_type; eauto. simpl.
+      rewrite <- rty_erase_open_eq in HTlam; eauto.
+  - apply reduction_mk_app_e_v'.
+    apply reduction_tletapp_fix. split; eauto.
+    apply reduction_mk_app_e_v in H0; eauto.
+    eauto using basic_typing_regular_value.
+  - rewrite is_tm_rty_open; eauto.
+Qed.

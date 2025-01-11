@@ -46,6 +46,12 @@ Definition tdable_rty (τ: rty) :=
   | {: _ | _ } | _ !<[ _ ]> => False
   end.
 
+Definition is_tm_rty (τ: rty) :=
+  match τ with
+  | [: _ | _] | _ !<[ _ ]> | _ ⇨ _ => True
+  | {: _ | _ } => False
+  end.
+
 (** Fine-defined Refinement type:
     - { b | ϕ }
     - (τ1 ⇨ τ2) where τ1 and τ2 is fine-defined, τ1 is pure
@@ -56,7 +62,7 @@ Fixpoint fine_rty (τ: rty) :=
   match τ with
   | rtyOver _ _ => True
   | rtyUnder _ _ => True
-  | rtyArr ρ τ => pure_rty ρ /\ fine_rty ρ /\ fine_rty τ
+  | rtyArr ρ τ => pure_rty ρ /\ fine_rty ρ /\ fine_rty τ /\ is_tm_rty τ
   | rtyTd ρ _ => tdable_rty ρ /\ fine_rty ρ
   end.
 
@@ -173,6 +179,16 @@ Inductive ok_ctx: listctx rty -> Prop :=
 Lemma ok_ctx_ok: forall Γ, ok_ctx Γ -> ok Γ.
 Proof.
   induction 1; eauto.
+Qed.
+
+Lemma is_tm_rty_open: forall τ k (v_x: value), is_tm_rty ({ k ~r> v_x} τ) <-> is_tm_rty τ.
+Proof.
+  split; induction τ; simpl; intros; inversion H; subst; eauto.
+Qed.
+
+Lemma is_tm_rty_subst: forall τ x (v_x: value), is_tm_rty ({ x := v_x}r τ) <-> is_tm_rty τ.
+Proof.
+  split; induction τ; simpl; intros; inversion H; subst; eauto.
 Qed.
 
 (** Shorthands, used in typing rules *)

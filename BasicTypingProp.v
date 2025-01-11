@@ -258,3 +258,11 @@ Lemma multi_preservation: forall α β Γ T (e e': tm),α ⊧ e ↪*{ β } e' ->
 Proof.
   induction 1; eauto using preservation.
 Qed.
+
+Ltac pure_multistep_tac :=
+  match goal with
+  | [H: _ |- ?α ⊧ (treturn ?v) ↪*{ ?α} (treturn _) ] =>
+      apply (value_reduction_any_ctx v); eauto
+  | [H: _ |- forall _, _ ⊧ (treturn ?v) ↪*{ _} (treturn _) ] =>
+      intros; apply (value_reduction_any_ctx v); eauto
+  end; basic_typing_regular_simp.

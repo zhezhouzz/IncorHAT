@@ -99,7 +99,7 @@ Fixpoint rtyR (gas: nat) (ρ: rty) (e: tm) : Prop :=
         | {: b | ϕ} =>
             forall (v: value), (forall α, α ⊧ e ↪*{α} v) -> denote_qualifier (ϕ ^q^ v)
         | [: b | ϕ] =>
-            forall (v: value), rtyR gas' {: b | ϕ} v -> (forall α, α ⊧ e ↪*{α} v)
+            forall (v: value), denote_qualifier (ϕ ^q^ v) -> (forall α, α ⊧ e ↪*{α} v)
         | ρx ⇨ τ =>
             exists (v: value), (forall α, α ⊧ e ↪*{α} v) /\
                             (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x))
@@ -436,11 +436,10 @@ Proof.
   qauto using basic_typing_tm_unique.
 Qed.
 
-Definition is_tm_rty (τ: rty) :=
-  match τ with
-  | [: _ | _] | _ !<[ _ ]> | _ ⇨ _ => True
-  | {: _ | _ } => False
-  end.
+Lemma is_tm_rty_retrty: forall τ1 τ2 L, closed_rty L (τ1⇨τ2) -> is_tm_rty τ2.
+Proof.
+  intros. sinvert H. sinvert H0. sinvert H4. intuition.
+Qed.
 
 Lemma rtyR_refine_aux n: forall τ e1 e2,
     rty_measure τ <= n ->
@@ -455,7 +454,11 @@ Proof.
   intuition.
   - qauto using basic_typing_tm_unique.
   - destruct H2 as (v & Hv & Hvv); subst.
-    exists v. intuition. eapply IHn; eauto. admit. admit. admit.
+    exists v. intuition. eapply IHn; eauto.
+    + repeat rewrite_measure_irrelevant.
+      rewrite <- open_preserves_rty_measure. lia.
+    + rewrite is_tm_rty_open. eauto using is_tm_rty_retrty.
+    + admit.
   - intuition. qauto using basic_typing_tm_unique.
     destruct τ; eauto.
     intros. edestruct H2 as (v & Hv & Hvv); eauto.
@@ -468,6 +471,15 @@ Lemma rtyR_refine: forall τ e1 e2,
   ⟦ τ ⟧ e2.
 Proof.
   pose rtyR_refine_aux. eauto.
+Qed.
+
+Lemma denot_const_overrty (c: constant):
+  forall (T: base_ty) ϕ,
+    closed_rty ∅ {:T|ϕ} -> ∅ ⊢t c ⋮t T -> denote_qualifier (ϕ ^q^ c) -> (⟦{:T|ϕ}⟧) c.
+Proof.
+  intros.
+  split; [| split]; eauto.
+  intros. apply value_reduction_refl' in H2. simp_hyps; eauto.
 Qed.
 
 (*   econstructor. *)

@@ -353,8 +353,9 @@ Ltac msubst_simp :=
   | |- context [ m{ _ }v (vfvar _) ] => rewrite msubst_fvar
   | H: context [ m{ _ }v (vconst _) ] |- _ => rewrite msubst_constant in H
   | |- context [ m{ _ }v (vconst _) ] => rewrite msubst_constant
-  | H: context [ m{ _ }q _ ] |- _ => rewrite msubst_qualifier in H
-  | |- context [ m{ _ }q _ ] => rewrite msubst_qualifier
+  (* NOTE: don't unfold qualifier definition *)
+  (* | H: context [ m{ _ }q _ ] |- _ => rewrite msubst_qualifier in H *)
+  (* | |- context [ m{ _ }q _ ] => rewrite msubst_qualifier *)
   | H: context [ m{ _ }q (_ & _) ] |- _ => rewrite msubst_qualifier_and in H
   | |- context [ m{ _ }q (_ & _) ] => rewrite msubst_qualifier_and
   | H: context [ m{ _ }r {: _ | _ } ] |- _ => rewrite msubst_overrty in H

@@ -119,6 +119,10 @@ Qed.
 
 Ltac basic_typing_regular_simp :=
   repeat match goal with
+    | [H: _ ⊢t ?e ⋮t _ |- lc ?e] =>
+        apply basic_typing_regular_tm in H; auto
+    | [H: _ ⊢t ?v ⋮v _ |- lc (treturn ?v)] =>
+        apply basic_typing_regular_value in H; auto
     | [H: _ ⊢t _ ⋮v _ |- lc _] => apply basic_typing_regular_value in H; destruct H; auto
     | [H: _ ⊢t _ ⋮t _ |- lc _] => apply basic_typing_regular_tm in H; destruct H; auto
     | [H: _ ⊢t _ ⋮v _ |- body _] => apply basic_typing_regular_value in H; destruct H; auto
