@@ -14,8 +14,9 @@ Transducer.v
 TransducerProp.v
 RefinementType.v
 RefinementTypeProp.v
-Denotation.v
 Instantiation.v
+Denotation.v
 InstantiationProp.v
+DenotationProp.v
 Typing.v
 Fundamental.v

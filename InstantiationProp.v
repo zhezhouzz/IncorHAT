@@ -280,6 +280,12 @@ Proof.
   msubst_tac.
 Qed.
 
+Lemma msubst_tdEx: forall (Γv: env) b ϕ A,
+    m{Γv}a (tdEx b ϕ A) = tdEx b (m{Γv}q ϕ) (m{Γv}a A).
+Proof.
+  msubst_tac.
+Qed.
+
 Tactic Notation "rewrite_msubst" constr(lem) "in" hyp(H) :=
   rewrite lem in H; eauto using ctxRst_closed_env.
 
@@ -333,6 +339,8 @@ Ltac msubst_simp :=
   | |- context [ m{ _ }a (tdLitId _ _) ] => rewrite msubst_tdLitId
   | H: context [ m{ _ }a (tdLitOut _ _ _ _ _) ] |- _ => rewrite msubst_tdLitOut in H
   | |- context [ m{ _ }a (tdLitOut _ _ _ _ _) ] => rewrite msubst_tdLitOut
+  | H: context [ m{ _ }a (tdEx _ _ _) ] |- _ => rewrite msubst_tdEx in H
+  | |- context [ m{ _ }a (tdEx _ _ _) ] => rewrite msubst_tdEx
   | H: context [ m{ _ }t (tlete _ _) ] |- _ => rewrite msubst_lete in H
   | |- context [ m{ _ }t (tlete _ _) ] => rewrite msubst_lete
   | H: context [ m{ _ }t (tleteffop _ _ _) ] |- _ => rewrite msubst_tleteffop in H
@@ -873,3 +881,15 @@ Qed.
 (*     simp_hyps. split; eauto. subst. *)
 (*     rewrite dom_insert. my_set_solver. *)
 (* Qed. *)
+
+Ltac misc_solver :=
+  repeat (match goal with
+          | [H: ok_ctx ?Γ |- ok_ctx (?Γ ++ [(?x, ?ρ)]) ] => econstructor; eauto
+          | [H: _ |- pure_rty {: _ | _} ] => simpl; eauto
+          | [H: _ |- _ ∉ _ ] => my_set_solver
+          end).
+
+Lemma is_tm_rty_msubst: forall τ Γv, closed_env Γv -> is_tm_rty (m{ Γv }r τ) <-> is_tm_rty τ.
+Proof.
+  split; induction τ; simpl; intros; msubst_simp.
+Qed.

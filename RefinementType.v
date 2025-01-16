@@ -142,7 +142,7 @@ Inductive lc_rty : rty -> Prop :=
     (forall x : atom, x ∉ L -> lc_td (a ^a^ x)) ->
     fine_rty ([:b | ϕ]!<[a]>) -> lc_rty [:b | ϕ] ->
     lc_rty ([:b | ϕ]!<[a]>)
-| lc_rtyTdArr: forall ρ τ a (L : aset),
+| lc_rtyTdArr: forall ρ τ a,
     lc_td a ->
     fine_rty ((ρ ⇨ τ)!<[a]>) -> lc_rty (ρ ⇨ τ) ->
     lc_rty ((ρ ⇨ τ)!<[a]>).
@@ -191,8 +191,74 @@ Proof.
   split; induction τ; simpl; intros; inversion H; subst; eauto.
 Qed.
 
+Lemma is_tm_rty_retrty: forall τ1 τ2 L, closed_rty L (τ1⇨τ2) -> is_tm_rty τ2.
+Proof.
+  intros. sinvert H. sinvert H0. sinvert H4. intuition.
+Qed.
+
 (** Shorthands, used in typing rules *)
 Definition mk_eq_constant c := [: ty_of_const c | b0:c= c ].
 Definition mk_bot ty := [: ty | mk_q_under_bot ].
 Definition mk_top ty := [: ty | mk_q_under_top ].
 Definition mk_eq_var ty (x: atom) := [: ty | b0:x= x ].
+
+Lemma lc_rty_under_base_q: forall b ϕ, lc_rty ([:b|ϕ]) <-> lc_phi1 ϕ.
+Proof.
+  split; intros; sinvert H; eauto.
+  econstructor; eauto. exists x. eauto. simpl; eauto.
+Qed.
+
+Lemma lc_rty_over_base_q: forall b ϕ, lc_rty ({:b|ϕ}) <-> lc_phi1 ϕ.
+Proof.
+  split; intros; sinvert H; eauto.
+  econstructor; eauto. exists x. eauto. simpl; eauto.
+Qed.
+
+Lemma lc_rty_base_flip: forall b ϕ, lc_rty {:b|ϕ} <-> lc_rty [:b|ϕ].
+Proof.
+  split; intros; sinvert H; econstructor; eauto.
+Qed.
+
+Lemma closed_rty_base_flip: forall L b ϕ, closed_rty L {:b|ϕ} <-> closed_rty L [:b|ϕ].
+Proof.
+  split; intros; sinvert H; econstructor; eauto;
+  rewrite lc_rty_base_flip in *; eauto.
+Qed.
+
+Lemma lc_rty_base_td: forall b ϕ A, lc_rty ([:b|ϕ]!<[A]>) <-> lc_rty [:b|ϕ] /\ body_td A.
+Proof.
+  split; intros; sinvert H.
+  - split; eauto. exists L. eauto.
+  - unfold body_td in H1. simp_hyps.
+    auto_exists_L. simpl; eauto.
+Qed.
+
+Lemma lc_rty_arr_td: forall ρ τ A, lc_rty ((ρ ⇨ τ)!<[A]>) <-> lc_rty (ρ ⇨ τ) /\ lc_td A.
+Proof.
+  split; intros; sinvert H.
+  - split; eauto.
+  - econstructor; eauto. sinvert H0. simpl; eauto.
+Qed.
+
+Lemma closed_rty_base_td: forall L b ϕ A, closed_rty L ([:b|ϕ]!<[ A ]>) <-> closed_rty L [:b|ϕ] /\ body_td A /\ td_fv A ⊆ L.
+Proof.
+  split; intros; sinvert H.
+  - intuition.
+    + sinvert H0; eauto. econstructor; eauto. my_set_solver.
+    + rewrite lc_rty_base_td in H0. intuition.
+    + rewrite lc_rty_base_td in H0. my_set_solver.
+  - sinvert H0. econstructor; eauto.
+    + rewrite lc_rty_base_td. intuition.
+    + my_set_solver.
+Qed.
+
+Lemma closed_rty_arr_td: forall L ρ τ A, closed_rty L ((ρ ⇨ τ)!<[ A ]>) <-> closed_rty L (ρ ⇨ τ) /\ closed_td L A.
+Proof.
+  split; intros; sinvert H.
+  - sinvert H0; split; eauto.
+    + econstructor; eauto. my_set_solver.
+    + econstructor; eauto. my_set_solver.
+  - sinvert H0. sinvert H1. econstructor; eauto.
+    + rewrite lc_rty_arr_td. intuition.
+    + my_set_solver.
+Qed.

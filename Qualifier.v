@@ -87,7 +87,7 @@ Notation " 'b1:c=' c " := (mk_q_bvar_eq_val 1 (vconst c))
                             (at level 5, format "b1:c= c", c constr).
 Notation " ϕ1 '&' ϕ2 " := (qualifier_and ϕ1 ϕ2)
                              (at level 5, format "ϕ1  &  ϕ2").
-    
+
 (** * Naming related definitions and lemmas *)
 
 (** free variables *)
@@ -122,7 +122,7 @@ Inductive lc_qualifier : qualifier -> Prop :=
   Vector.Forall (fun v => lc (treturn v)) vals ->
   lc_qualifier (@qual n vals prop)
 .
-  
+
 Lemma subst_commute_qualifier : forall x u_x y u_y ϕ,
     x <> y -> x ∉ fv_value u_y -> y ∉ fv_value u_x ->
     {x := u_x }q ({y := u_y }q ϕ) = {y := u_y }q ({x := u_x }q ϕ).
@@ -499,3 +499,9 @@ Proof.
   rewrite qualifier_and_open. rewrite qualifier_and_open.
   eauto using lc_qualifier_and.
 Qed.
+
+Inductive closed_qualifier1 (L: aset) (ϕ: qualifier): Prop :=
+| closed_phi1: qualifier_fv ϕ ⊆ L -> lc_phi1 ϕ -> closed_qualifier1 L ϕ.
+
+Inductive closed_qualifier2 (L: aset) (ϕ: qualifier): Prop :=
+| closed_phi2: qualifier_fv ϕ ⊆ L -> lc_phi2 ϕ -> closed_qualifier2 L ϕ.

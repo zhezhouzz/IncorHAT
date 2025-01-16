@@ -312,6 +312,36 @@ Qed.
 
 (** NOTE: reduction lemmas for underapproximation *)
 
+Ltac lc_solver_simp_aux :=
+  match goal with
+  | [H: _ ⊧ _ ↪*{ _ } _ |- lc _] => apply multi_step_regular in H; simp_hyps
+  | [H: _ ⊧ _ ↪*{ _ } _ |- body _] => apply multi_step_regular in H; simp_hyps
+  end.
+
+Ltac lc_solver_simp :=
+  repeat lc_solver_simp_aux; eauto.
+
+Ltac lc_solver_plus_aux :=
+  match goal with
+  | [H: lc (tlete _ _) |- lc _] => rewrite lete_lc_body in H; simp_hyps
+  | [H: lc (tlete _ _) |- body _] => rewrite lete_lc_body in H; simp_hyps
+  end.
+
+Ltac lc_solver_plus :=
+  lc_solver_simp; eauto;
+  (repeat lc_solver_plus_aux); eauto.
+
+Lemma reduction_tlete_value: forall (v1: value) e2,
+  forall α β (v: value), α ⊧ tlete v1 e2 ↪*{ β} v <-> (lc v1 /\ body e2 /\ α ⊧ e2 ^t^ v1 ↪*{ β} v).
+Proof.
+  split; intros.
+  - assert (lc v1) by lc_solver_plus.
+    assert (body e2) by lc_solver_plus.
+    apply reduction_tlete in H. simp_hyps.
+    apply value_reduction_refl in H. simp_hyps. subst; intuition.
+  - simp_hyps. eapply reduction_tlete'; eauto.
+Qed.
+
 Lemma reduction_nest_tlete: forall e,
   forall α β (v: value), α ⊧ tlete e (vbvar 0) ↪*{ β} v <-> α ⊧ e ↪*{ β} v.
 Proof.
@@ -348,4 +378,24 @@ Proof.
     apply multi_step_regular in H0; simp_hyps; eauto.
     econstructor; eauto. rewrite letapp_lc_body in H0. simp_hyps.
     lc_solver. lc_solver.
+Qed.
+
+Lemma reduction_mk_app_e_v_f:  forall e α β (v_x v : value),
+    lc v_x ->
+    α ⊧ mk_app_e_v e v_x ↪*{ β} v <->
+      (exists (f: value) γ, α ⊧ e ↪*{ γ} f /\ γ ⊧ mk_app_e_v f v_x ↪*{ β} v).
+Proof.
+  intros e α β v_x v Hlc.
+  unfold mk_app_e_v.
+  split; intros.
+  - assert (body (tletapp (vbvar 0) v_x (vbvar 0))) by lc_solver_plus.
+    apply reduction_tlete in H. destruct H as (γ & f & Hf & Hv).
+    exists f. exists γ. intuition. simpl in Hv.
+    assert (γ ⊧ f ↪*{ γ} f). {
+      apply value_reduction_any_ctx. lc_solver_plus.
+    }
+    eapply reduction_tlete'; eauto.
+  - simp_hyps.
+    eapply reduction_tlete'; eauto. lc_solver_plus.
+    rewrite reduction_tlete_value in H1. simp_hyps. eauto.
 Qed.

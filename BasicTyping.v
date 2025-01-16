@@ -117,14 +117,35 @@ Proof.
     try econstructor; try instantiate_atom_listctx; eauto.
 Qed.
 
+(* Ltac basic_typing_regular_simp := *)
+(*   repeat match goal with *)
+(*     | [H: _ ⊢t ?e ⋮t _ |- lc ?e] => *)
+(*         apply basic_typing_regular_tm in H; auto *)
+(*     | [H: _ ⊢t ?v ⋮v _ |- lc (treturn ?v)] => *)
+(*         apply basic_typing_regular_value in H; auto *)
+(*     | [H: _ ⊢t _ ⋮v _ |- lc _] => apply basic_typing_regular_value in H; destruct H; auto *)
+(*     | [H: _ ⊢t _ ⋮t _ |- lc _] => apply basic_typing_regular_tm in H; destruct H; auto *)
+(*     | [H: _ ⊢t _ ⋮v _ |- body _] => apply basic_typing_regular_value in H; destruct H; auto *)
+(*     | [H: _ ⊢t _ ⋮t _ |- body _] => apply basic_typing_regular_tm in H; destruct H; auto *)
+(*     end. *)
+
+Ltac lc_basic_typing_simp_aux :=
+  match goal with
+  | [H: _ ⊢t ?e ⋮t _ |- lc ?e] => apply basic_typing_regular_tm in H
+  | [H: _ ⊢t ?v ⋮v _ |- lc (treturn ?v)] => apply basic_typing_regular_value in H
+  | [H: _ ⊢t _ ⋮v _ |- lc _] => apply basic_typing_regular_value in H; simp_hyps
+  | [H: _ ⊢t _ ⋮t _ |- lc _] => apply basic_typing_regular_tm in H; simp_hyps
+  | [H: _ ⊢t _ ⋮v _ |- body _] => apply basic_typing_regular_value in H; simp_hyps
+  | [H: _ ⊢t _ ⋮t _ |- body _] => apply basic_typing_regular_tm in H; simp_hyps
+  | [H: _ ⊢t _ ⋮v _ |- context [fv_value _]] =>
+      apply basic_typing_closed_value in H; simp_hyps
+  | [H: _ ⊢t _ ⋮t _ |- context [fv_value _]] =>
+      apply basic_typing_closed_tm in H; simp_hyps
+  | [H: _ ⊢t _ ⋮v _ |- context [fv_tm _]] =>
+      apply basic_typing_closed_value in H; simp_hyps
+  | [H: _ ⊢t _ ⋮t _ |- context [fv_tm _]] =>
+      apply basic_typing_closed_tm in H; simp_hyps
+  end; eauto.
+
 Ltac basic_typing_regular_simp :=
-  repeat match goal with
-    | [H: _ ⊢t ?e ⋮t _ |- lc ?e] =>
-        apply basic_typing_regular_tm in H; auto
-    | [H: _ ⊢t ?v ⋮v _ |- lc (treturn ?v)] =>
-        apply basic_typing_regular_value in H; auto
-    | [H: _ ⊢t _ ⋮v _ |- lc _] => apply basic_typing_regular_value in H; destruct H; auto
-    | [H: _ ⊢t _ ⋮t _ |- lc _] => apply basic_typing_regular_tm in H; destruct H; auto
-    | [H: _ ⊢t _ ⋮v _ |- body _] => apply basic_typing_regular_value in H; destruct H; auto
-    | [H: _ ⊢t _ ⋮t _ |- body _] => apply basic_typing_regular_tm in H; destruct H; auto
-    end.
+  repeat lc_basic_typing_simp_aux; eauto.

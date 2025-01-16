@@ -266,3 +266,18 @@ Ltac pure_multistep_tac :=
   | [H: _ |- forall _, _ ⊧ (treturn ?v) ↪*{ _} (treturn _) ] =>
       intros; apply (value_reduction_any_ctx v); eauto
   end; basic_typing_regular_simp.
+
+Ltac unique_basic_type :=
+  repeat match goal with
+    | [ H: ?g ⊢t ?e ⋮t ?T, H': ?g ⊢t ?e ⋮t ?T |- _ ] => clear H'
+    | [ H: ?g ⊢t ?e ⋮v ?T, H': ?g ⊢t ?e ⋮v ?T |- _ ] => clear H'
+    | [ H: ?g ⊢t ?e ⋮t ?T, H': ?g ⊢t ?e ⋮t ?T' |- _ ] =>
+        assert (T = T') by eauto using basic_typing_tm_unique; subst
+    | [ H: ?g ⊢t ?e ⋮v ?T, H': ?g ⊢t ?e ⋮v ?T' |- _ ] =>
+        assert (T = T') by eauto using basic_typing_value_unique; subst
+    end.
+
+Ltac basic_typing_solver :=
+  match goal with
+  | [H: ?g ⊢t (treturn ?v) ⋮t ?t |- ?g ⊢t ?v ⋮v ?t ] => sinvert H; eauto
+  end.

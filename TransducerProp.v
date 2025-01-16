@@ -152,3 +152,36 @@ Proof.
   pose open_value_idemp.
   induction a; intros; simpl; f_equal; eauto.
 Qed.
+
+Lemma subst_intro_td: ∀ (A: transducer) (x : atom) (w : value) (k : nat),
+    x # A → lc w → ({x:=w}a) ({k ~a> x} A) = {k ~a> w} A.
+Admitted.
+
+Lemma open_rec_lc_td: ∀ (u : value) A (k : nat), lc_td A -> {k ~a> u} A = A.
+Admitted.
+
+Lemma lc_tdEx_destruct: forall b ϕ A, lc_td (tdEx b ϕ A) <-> lc_phi1 ϕ /\ body_td A.
+Proof.
+  split; intros.
+  - sinvert H. intuition. eexists L. eauto.
+  - destruct H. destruct H0. auto_exists_L.
+Qed.
+
+Lemma lc_tdComp_destruct: forall A B, lc_td (tdComp A B) <-> lc_td A /\ lc_td B.
+Proof.
+  split; intros.
+  - sinvert H. intuition.
+  - econstructor; intuition.
+Qed.
+
+Lemma body_td_comp: forall A B, body_td (tdComp A B) <-> body_td A /\ body_td B.
+Proof.
+  split; intros.
+  - sinvert H. split; auto_exists_L; intros.
+    + ospecialize * (H0 x0); eauto. my_set_solver.
+      simpl in *; rewrite lc_tdComp_destruct in H0; intuition.
+    + ospecialize * (H0 x0); eauto. my_set_solver.
+      simpl in *; rewrite lc_tdComp_destruct in H0; intuition.
+  - unfold body_td in H. simp_hyp H.
+    auto_exists_L; intros. simpl. rewrite lc_tdComp_destruct. intuition; auto_apply; my_set_solver.
+Qed.

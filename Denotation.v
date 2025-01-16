@@ -255,6 +255,12 @@ Proof.
   induction 1; eauto. econstructor.
 Qed.
 
+Lemma ctxRst_regular Γ Γv:
+  ctxRst Γ Γv -> ok_ctx Γ /\ ctxdom Γ ≡ dom Γv /\ closed_env Γv.
+Proof.
+  pose ctxRst_ok_ctx. pose ctxRst_dom. pose ctxRst_closed_env. intuition; eauto.
+Qed.
+
 Lemma ctxRst_ok_insert Γ Γv x ρ :
   ctxRst Γ Γv ->
   ok_ctx (Γ ++ [(x, ρ)]) ->
@@ -264,6 +270,7 @@ Proof.
   rewrite ctxRst_dom in * by eauto.
   by apply not_elem_of_dom.
 Qed.
+
 
 Lemma mk_top_closed_rty b : closed_rty ∅ (mk_top b).
 Proof.
@@ -321,6 +328,30 @@ Proof.
   qauto.
 Qed.
 
+Lemma td_measure_gt_0 ρ : td_measure ρ > 0.
+Proof.
+  induction ρ; simpl; lia.
+Qed.
+
+Lemma td_measure_S ρ : exists n, td_measure ρ = S n.
+Proof.
+  destruct (Nat.lt_exists_pred 0 (td_measure ρ)).
+  pose proof (td_measure_gt_0 ρ). lia.
+  intuition eauto.
+Qed.
+
+Lemma open_preserves_td_measure ρ: forall k t,
+    td_measure ρ = td_measure ({k ~a> t} ρ).
+Proof.
+  induction ρ; simpl; eauto.
+Qed.
+
+Lemma subst_preserves_td_measure ρ: forall x t,
+    td_measure ρ = td_measure ({x:=t}a ρ).
+Proof.
+  induction ρ; simpl; eauto.
+Qed.
+
 Lemma rty_measure_gt_0 ρ : rty_measure ρ > 0.
 Proof.
   induction ρ; simpl; lia.
@@ -334,15 +365,91 @@ Proof.
 Qed.
 
 Lemma open_preserves_rty_measure ρ: forall k t,
-  rty_measure ρ = rty_measure ({k ~r> t} ρ).
+    rty_measure ρ = rty_measure ({k ~r> t} ρ).
 Proof.
   induction ρ; simpl; eauto.
 Qed.
 
 Lemma subst_preserves_rty_measure ρ: forall x t,
-  rty_measure ρ = rty_measure ({x:=t}r ρ).
+    rty_measure ρ = rty_measure ({x:=t}r ρ).
 Proof.
   induction ρ; simpl; eauto.
+Qed.
+
+Ltac lia_simp :=
+  repeat match goal with
+    | [H: S _ = S _ |- _ ] => sinvert H
+    end.
+
+Ltac lia_tac :=
+  repeat match goal with
+  | [H: _ |- context [td_measure (_ ^a^ _)] ] => rewrite <- open_preserves_td_measure
+  | [H: _ |- context [rty_measure (_ ^r^ _)] ] => rewrite <- open_preserves_rty_measure
+  | [H: _ |- _ <= _ ] => simpl in *; lia
+  end; eauto.
+
+Ltac exist_tac :=
+  match goal with
+  | [H: exists x, _ |- exists _, _ ] =>
+      let x := fresh x in
+      destruct H as (x & H); exists x; intuition
+  end.
+
+Lemma langA_measure_irrelevant_aux: forall k ρ m n α β,
+    td_measure ρ <= k ->
+    k <= n ->
+    k <= m ->
+    langA n ρ α β <-> langA m ρ α β.
+Proof.
+  induction k; destruct ρ; intros m n α β Hk Hn Hm;
+    split; intro H; destruct m, n;
+    try solve [sinvert Hm; sinvert Hn; sinvert Hk; eauto];
+    try solve [lia_tac];
+    destruct H as (Hclosed & Hwfα & Hwfβ & H); simpl; intuition;
+    try solve [exist_tac; rewrite IHk; try lia_tac].
+  - left. rewrite IHk; try lia_tac.
+  - right. rewrite IHk; try lia_tac.
+  - left. rewrite IHk; try lia_tac.
+  - right. rewrite IHk; try lia_tac.
+Qed.
+
+Lemma langA_measure_irrelevant: forall ρ m n α β,
+    td_measure ρ <= n ->
+    td_measure ρ <= m ->
+    langA n ρ α β <-> langA m ρ α β.
+Proof.
+  intros. eapply (langA_measure_irrelevant_aux (td_measure ρ)); eauto.
+Qed.
+
+Lemma langA_measure_irrelevant' n ρ α β:
+  td_measure ρ <= n ->
+  langA n ρ α β <-> a⟦ ρ ⟧ α β.
+Proof.
+  intros. rewrite langA_measure_irrelevant; eauto.
+Qed.
+
+Lemma rtyR_measure_irrelevant_aux: forall k ρ m n e,
+    rty_measure ρ <= k ->
+    k <= n ->
+    k <= m ->
+    rtyR n ρ e <-> rtyR m ρ e.
+Proof.
+  induction k; destruct ρ; intros m n e Hk Hn Hm;
+    split; intro H; destruct m, n;
+    try solve [sinvert Hm; sinvert Hn; sinvert Hk; eauto];
+    try solve [lia_tac].
+  - destruct H as (HT & Hclosed & H). simpl; intuition.
+    exist_tac. rewrite <- (IHk _ _ n); try lia_tac. rewrite <- (IHk _ _ n) in *; try lia_tac.
+  - destruct H as (HT & Hclosed & H). simpl; intuition.
+    exist_tac. rewrite (IHk _ m); try lia_tac. rewrite (IHk _ m) in *; try lia_tac.
+  - destruct H as (HT & Hclosed & H). simpl; intuition.
+    destruct ρ; intuition.
+    + rewrite <- (IHk _ _ n) in *; try lia_tac.
+    + specialize (H α β H0). exist_tac. rewrite <- (IHk _ _ n); try lia_tac.
+  - destruct H as (HT & Hclosed & H). simpl; intuition.
+    destruct ρ; intuition.
+    + rewrite (IHk _ m) in *; try lia_tac.
+    + specialize (H α β H0). exist_tac. rewrite (IHk _ m); try lia_tac.
 Qed.
 
 (* The conclusion has to be strengthened to an equivalence to get around
@@ -352,48 +459,8 @@ Lemma rtyR_measure_irrelevant m n ρ e :
   rty_measure ρ <= m ->
   rtyR n ρ e <-> rtyR m ρ e.
 Proof.
-  all: induction m, n; intros;
-    try solve [ pose proof (rty_measure_gt_0 ρ); lia
-              | pose proof (rty_measure_gt_0 τ); lia ].
-  intuition.
-Admitted.
-  (* - intuition. *)
-  (*   simpl. *)
-  (* - intuition. *)
-  (*   + destruct ρ; intros; simpl in *; eauto. *)
-  (*     destruct ρ; intros; simpl in *; eauto. *)
-  (*     * edestruct H5 as (v & Hv); eauto. exists v. intuition. rewrite H1. *)
-  (*     rewrite <- rtyR_measure_irrelevant. *)
-  (*     auto_apply. *)
-  (*     rewrite rtyR_measure_irrelevant; eauto. lia. lia. *)
-  (*     rewrite <- open_preserves_rty_measure. lia. *)
-  (*     rewrite <- open_preserves_rty_measure. lia. *)
-  (*     rewrite <- rtyR_measure_irrelevant; eauto. *)
-  (*     rewrite <- open_preserves_rty_measure. lia. *)
-  (*     rewrite <- open_preserves_rty_measure. lia. *)
-  (*   + destruct ρ; intros; simpl in *; eauto. *)
-  (*     rewrite rtyR_measure_irrelevant. *)
-  (*     auto_apply. *)
-  (*     rewrite <- rtyR_measure_irrelevant; eauto. lia. lia. *)
-  (*     rewrite <- open_preserves_rty_measure. lia. *)
-  (*     rewrite <- open_preserves_rty_measure. lia. *)
-  (*     rewrite rtyR_measure_irrelevant; eauto. *)
-  (*     rewrite <- open_preserves_rty_measure. lia. *)
-  (*     rewrite <- open_preserves_rty_measure. lia. *)
-  (* - intuition. *)
-  (*   + destruct τ; intros; simpl in *; eauto. *)
-  (*     specialize (H4 _ _ _ H3 H5). intuition. *)
-  (*     rewrite <- rtyR_measure_irrelevant; eauto. lia. lia. *)
-  (*     intuition. *)
-  (*     rewrite <- rtyR_measure_irrelevant; eauto. lia. lia. *)
-  (*     rewrite <- rtyR_measure_irrelevant; eauto. lia. lia. *)
-  (*   + destruct τ; intros; simpl in *; eauto. *)
-  (*     specialize (H4 _ _ _ H3 H5). intuition. *)
-  (*     rewrite rtyR_measure_irrelevant; eauto. lia. lia. *)
-  (*     intuition. *)
-  (*     rewrite rtyR_measure_irrelevant; eauto. lia. lia. *)
-  (*     rewrite rtyR_measure_irrelevant; eauto. lia. lia. *)
-
+  intros. eapply (rtyR_measure_irrelevant_aux (rty_measure ρ)); eauto.
+Qed.
 
 Lemma rtyR_measure_irrelevant' n ρ e :
   rty_measure ρ <= n ->
@@ -403,13 +470,29 @@ Proof.
 Qed.
 
 Ltac rewrite_measure_irrelevant :=
-  let t := (rewrite <- ?open_preserves_rty_measure; lia) in
+  let t := (rewrite <- ?open_preserves_rty_measure;
+            rewrite <- ?open_preserves_td_measure;
+            lia) in
   match goal with
   | H : context [rtyR _ _ _] |- _ =>
       setoid_rewrite rtyR_measure_irrelevant' in H; [ | t .. ]
   | |- context [rtyR _ _ _] =>
       setoid_rewrite rtyR_measure_irrelevant'; [ | t .. ]
+  | H : context [langA _ _ _ _] |- _ =>
+      setoid_rewrite langA_measure_irrelevant' in H; [ | t .. ]
+  | |- context [langA _ _ _ _] =>
+      setoid_rewrite langA_measure_irrelevant'; [ | t .. ]
   end.
+
+(* Ltac lc_basic_typing_plus_aux := *)
+(*   match goal with *)
+(*   | [H: lc (tlete _ _) |- lc _] => rewrite lete_lc_body in H; simp_hyps *)
+(*   | [H: lc (tlete _ _) |- body _] => rewrite lete_lc_body in H; simp_hyps *)
+(*   end. *)
+
+Ltac lc_solver_plus :=
+  repeat (lc_solver_simp_aux || lc_basic_typing_simp_aux); eauto;
+  (repeat lc_solver_plus_aux); eauto.
 
 (* A machinery to simplify certain proofs *)
 Definition tm_refine e e' :=
@@ -436,75 +519,21 @@ Proof.
   qauto using basic_typing_tm_unique.
 Qed.
 
-Lemma is_tm_rty_retrty: forall τ1 τ2 L, closed_rty L (τ1⇨τ2) -> is_tm_rty τ2.
-Proof.
-  intros. sinvert H. sinvert H0. sinvert H4. intuition.
-Qed.
-
-Lemma rtyR_refine_aux n: forall τ e1 e2,
-    rty_measure τ <= n ->
-    is_tm_rty τ ->
-    tm_refine e1 e2 ->
-    rtyR n τ e1 ->
-    rtyR n τ e2.
-Proof.
-  induction n; intros τ e1 e2 Hm Hunder [Ht Hr] H; simpl in *;
-    destruct τ; simpl in *; eauto; try easy.
-  qauto using basic_typing_tm_unique.
-  intuition.
-  - qauto using basic_typing_tm_unique.
-  - destruct H2 as (v & Hv & Hvv); subst.
-    exists v. intuition. eapply IHn; eauto.
-    + repeat rewrite_measure_irrelevant.
-      rewrite <- open_preserves_rty_measure. lia.
-    + rewrite is_tm_rty_open. eauto using is_tm_rty_retrty.
-    + admit.
-  - intuition. qauto using basic_typing_tm_unique.
-    destruct τ; eauto.
-    intros. edestruct H2 as (v & Hv & Hvv); eauto.
-Admitted.
-
-Lemma rtyR_refine: forall τ e1 e2,
-  is_tm_rty τ ->
+Lemma tm_refine_mk_app (e1 e2: tm) (v: value) T:
   tm_refine e1 e2 ->
-  ⟦ τ ⟧ e1 ->
-  ⟦ τ ⟧ e2.
+  lc v ->
+  ∅ ⊢t mk_app_e_v e2 v ⋮t T ->
+  tm_refine (mk_app_e_v e1 v) (mk_app_e_v e2 v).
 Proof.
-  pose rtyR_refine_aux. eauto.
+  intros. destruct H as ((Te & HTe1 & HTe2) & H).
+  split.
+  - exists T. intuition.
+    apply mk_app_e_v_has_type_inv in H1; auto.
+    simp_hyps.
+    eapply mk_app_e_v_has_type; eauto. unique_basic_type. auto.
+  - intros.
+    rewrite reduction_mk_app_e_v_f in H2 by auto.
+    simp_hyps.
+    rewrite reduction_mk_app_e_v_f by auto.
+    repeat eexists; eauto.
 Qed.
-
-Lemma denot_const_overrty (c: constant):
-  forall (T: base_ty) ϕ,
-    closed_rty ∅ {:T|ϕ} -> ∅ ⊢t c ⋮t T -> denote_qualifier (ϕ ^q^ c) -> (⟦{:T|ϕ}⟧) c.
-Proof.
-  intros.
-  split; [| split]; eauto.
-  intros. apply value_reduction_refl' in H2. simp_hyps; eauto.
-Qed.
-
-(*   econstructor. *)
-(*   qauto using basic_typing_tm_unique. *)
-(*   simpl. intuition. *)
-
-(*   easy. *)
-
-(*   easy. *)
-(*   intro Hunder. intros [Ht Hr]. *)
-(*   assert (rty_measure τ <= rty_measure τ) by reflexivity. *)
-(*   revert H. generalize (rty_measure τ) at 2 3 4 as n. *)
-(*   intros n. revert Hunder. revert e2. revert τ. *)
-(*   induction n. easy. *)
-(*   simpl. intuition. *)
-(*   qauto using basic_typing_tm_unique. *)
-(*   destruct τ; eauto. *)
-(*   - inversion Hunder. *)
-(*   - intros. edestruct H3; eauto. intuition. *)
-(*     eexists. intuition; eauto. *)
-(*     apply IHn; eauto. lia. *)
-(*   - intros. eapply H3; eauto. eapply Hr. *)
-(*     assert ([] ⊧ e1 ↪*{ [] } v). rewrite H3. apply multistep_refl. admit. *)
-(*     apply Hr in H2. *)
-(*     simpl in *. intuition. *)
-(*     apply IHn; eauto. lia. *)
-(*     apply IHn; eauto. lia. *)
-(* Qed. *)

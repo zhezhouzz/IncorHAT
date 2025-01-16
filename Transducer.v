@@ -102,8 +102,11 @@ Inductive lc_td : transducer -> Prop :=
 | lc_tdEx : forall b ϕ a (L : aset), (forall x : atom, x ∉ L -> lc_td (a ^a^ x)) -> lc_phi1 ϕ -> lc_td (tdEx b ϕ a)
 .
 
+Definition body_td A := exists (L: aset), ∀ x : atom, x ∉ L → lc_td (A ^a^ x).
+
 (** Closed under free variable set *)
 
 Inductive closed_td (d: aset) (a: transducer): Prop :=
 | closed_td_: lc_td a -> td_fv a ⊆ d -> closed_td d a.
+
 
