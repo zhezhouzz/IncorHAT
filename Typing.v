@@ -417,14 +417,6 @@ Proof.
     + apply langA_valid_trace in H1; intuition.
 Qed.
 
-Ltac my_simplify_map :=
-  (repeat match goal with
-     | [H: context [ _ ∪ ∅ ] |- _ ] => setoid_rewrite map_union_empty in H
-     | [H: _ |- context [ _ ∪ ∅ ] ] => setoid_rewrite map_union_empty
-     | [H: context [ insert _ _ ∅ ] |- _ ] => setoid_rewrite insert_empty in H
-     | [H: _ |- context [ insert _ _ ∅  ] ] => setoid_rewrite insert_empty
-     end).
-
 Ltac msubst_erase_simp :=
   match goal with
   | [H: context [ ⌊ (m{ _ }r) _ ⌋ ] |- _ ] => setoid_rewrite <- rty_erase_msubst_eq in H

@@ -33,16 +33,6 @@ Definition valid_trace := Forall valid_evop.
 
 (** Transducer denotation *)
 
-(* This measure function is used to guarantee termination of the denotation.
-Instead of addtion, we can also use [max] for the subterms. *)
-Fixpoint td_measure (a: transducer) : nat :=
-  match a with
-  | tdId => 1
-  | ⟨ _ | _ ⟩/id | ⟨ _ | _ ⟩/⟨ _ | _ | _ ⟩ => 1
-  | a1 ○ a2 | tdUnion a1 a2 => 1 + td_measure a1 + td_measure a2
-  | tdEx _ _ a => 1 + td_measure a
-  end.
-
 Fixpoint langA (gas: nat) (a: transducer) (α: list evop) (β: list evop) : Prop :=
   match gas with
   | 0 => False
@@ -326,30 +316,6 @@ Proof.
   rewrite qualifier_and_open.
   rewrite denote_qualifier_and.
   qauto.
-Qed.
-
-Lemma td_measure_gt_0 ρ : td_measure ρ > 0.
-Proof.
-  induction ρ; simpl; lia.
-Qed.
-
-Lemma td_measure_S ρ : exists n, td_measure ρ = S n.
-Proof.
-  destruct (Nat.lt_exists_pred 0 (td_measure ρ)).
-  pose proof (td_measure_gt_0 ρ). lia.
-  intuition eauto.
-Qed.
-
-Lemma open_preserves_td_measure ρ: forall k t,
-    td_measure ρ = td_measure ({k ~a> t} ρ).
-Proof.
-  induction ρ; simpl; eauto.
-Qed.
-
-Lemma subst_preserves_td_measure ρ: forall x t,
-    td_measure ρ = td_measure ({x:=t}a ρ).
-Proof.
-  induction ρ; simpl; eauto.
 Qed.
 
 Lemma rty_measure_gt_0 ρ : rty_measure ρ > 0.

@@ -304,7 +304,9 @@ Proof.
 Qed.
 
 Lemma open_rec_lc_rty: ∀ (u : value) τ (k : nat), lc_rty τ -> {k ~r> u} τ = τ.
+Proof.
 Admitted.
+
 
 (* Lemma closed_rty_td_congr d ρ a : *)
 (*   closed_rty d ρ -> *)
