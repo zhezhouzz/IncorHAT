@@ -109,25 +109,31 @@ Proof.
   split. apply subst_pure_rty_r. apply subst_pure_rty_l.
 Qed.
 
+Ltac rty_simp :=
+  (repeat match goal with
+     | [H: _ |- is_tm_rty (({ _ := _ }r) _) ] =>
+         rewrite is_tm_rty_subst
+     | [H: is_tm_rty (({ _ := _ }r) _) |- is_tm_rty _ ] =>
+         rewrite is_tm_rty_subst in H
+     | [H: _ |- tdable_rty (({ _ := _ }r) _) ] =>
+         rewrite tdable_rty_subst
+     | [H: tdable_rty (({ _ := _ }r) _) |- tdable_rty _ ] =>
+         rewrite tdable_rty_subst in H
+     end); eauto.
+
 Lemma subst_fine_rty_l: forall (τ: rty) (x:atom) (u: value),
     fine_rty τ -> fine_rty ({x := u}r τ).
 Proof.
   pose subst_pure_rty_l.
-  induction τ; intros; simpl in *; eauto.
-Admitted.
-(*   - destruct τ; simpl in *; eauto. intuition. eauto. *)
-(*   - intuition. *)
-(* Qed. *)
+  induction τ; intros; simpl in *; eauto; intuition; rty_simp.
+Qed.
 
 Lemma subst_fine_rty_r: forall (τ: rty) (x:atom) (u: value),
     fine_rty ({x := u}r τ) -> fine_rty τ.
 Proof.
   pose subst_pure_rty_r.
-  induction τ; intros; simpl in *; eauto.
-Admitted.
-(*   - destruct τ; simpl in *; eauto. *)
-(*   - intuition; eauto. *)
-(* Qed. *)
+  induction τ; intros; simpl in *; eauto; intuition; rty_simp.
+Qed.
 
 Lemma subst_fine_rty: forall (τ: rty) (x:atom) (u: value),
     fine_rty ({x := u}r τ) <-> fine_rty τ.
@@ -151,10 +157,10 @@ Proof.
   all: revert k.
   induction τ; simpl; intros; eauto using open_fv_qualifier.
   etrans. repeat apply union_mono; eauto using open_fv_td.
-Admitted.
-(*   my_set_solver. *)
-(*   etrans. repeat apply union_mono; eauto. my_set_solver. *)
-(* Qed. *)
+  my_set_solver.
+  etrans. repeat apply union_mono; eauto using open_fv_td.
+  my_set_solver.
+Qed.
 
 Lemma open_fv_rty' (τ : rty) (v : value) k :
   rty_fv τ ⊆ rty_fv ({k ~r> v} τ).
@@ -223,21 +229,23 @@ Proof.
   all: induction 1; intros; simpl in *.
   - econstructor; simpl; eauto.
   - auto_exists_L.
-Admitted.
-(*     rewrite <- subst_open_var_td; eauto. set_solver. solve_fine_rty. *)
-(*   - auto_exists_L. intros. specialize_with x0. *)
-(*     rewrite <- subst_open_var_rty; eauto. set_solver. solve_fine_rty. *)
-(* Qed. *)
+  - auto_exists_L; intros. rewrite <- subst_open_var_rty; eauto.
+    auto_apply; eauto. my_set_solver. my_set_solver.
+    simpl. intuition. rty_simp.
+  - auto_exists_L; intros. rewrite <- subst_open_var_td; eauto.
+    auto_apply; eauto. my_set_solver. my_set_solver.
+  - auto_exists_L; intros.
+    simpl. intuition. rty_simp.
+Qed.
 
 Lemma fv_of_subst_rty_closed:
   forall x (u : value) (τ: rty),
     closed_value u ->
     rty_fv ({x := u }r τ) = (rty_fv τ ∖ {[x]}).
 Proof.
-Admitted.
-(*   induction τ; simpl; intros; eauto using fv_of_subst_qualifier_closed; *)
-(*   try (rewrite !fv_of_subst_td_closed by eauto); my_set_solver. *)
-(* Qed. *)
+  induction τ; simpl; intros; eauto using fv_of_subst_qualifier_closed;
+  try (rewrite !fv_of_subst_td_closed by eauto); my_set_solver.
+Qed.
 
 Lemma open_not_in_eq_rty (x : atom) (τ : rty) k :
   x # {k ~r> x} τ ->
@@ -247,9 +255,8 @@ Proof.
   pose open_not_in_eq_qualifier.
   generalize k; induction τ; intros; simpl in *; f_equal; eauto;
     try (auto_apply; my_set_solver).
-Admitted.
-(*   apply open_not_in_eq_td with (x:=x). my_set_solver. *)
-(* Qed. *)
+  apply open_not_in_eq_td with (x:=x). my_set_solver.
+Qed.
 
 Lemma subst_intro_rty: forall (ρ: rty) (x:atom) (w: value) (k: nat),
     x # ρ ->
@@ -267,6 +274,7 @@ Proof.
   pose lc_subst_phi1.
   pose lc_subst_phi2.
   pose lc_subst_td.
+  pose lc_rty_fine.
   pose subst_pure_rty_r.
   pose subst_fine_rty_r.
   intros.
@@ -276,14 +284,21 @@ Proof.
   - intros τ **; destruct τ; inversion Heqr; simpl in *; subst; econstructor; eauto.
   - intros τ1 **; destruct τ1; inversion Heqr; simpl; subst.
     auto_exists_L.
-Admitted.
-  (*   intros. specialize_with x0. *)
-  (*   rewrite <- subst_open_var_td in *; eauto. set_solver. *)
-  (* - intros τ1 **; destruct τ1; inversion Heqr; simpl; subst. *)
-  (*   auto_exists_L. intros. specialize_with x0. simpl in H. *)
-  (*   specialize_with x0. apply H1. *)
-  (*   rewrite <- subst_open_var_rty in * by (eauto; my_set_solver); eauto. *)
-  (* - admit. *)
+  - intros τ1 **; destruct τ1; inversion Heqr; simpl; subst.
+    auto_exists_L.
+    intros. repeat specialize_with x0.
+    apply H1.
+    rewrite <- subst_open_var_rty; eauto. my_set_solver.
+  - intros τ1 **; destruct τ1; inversion Heqr; simpl; subst.
+    destruct τ1; inversion Heqr; simpl; subst.
+    sinvert H4. sinvert H2.
+    auto_exists_L. intros. specialize_with x0.
+    rewrite <- subst_open_var_td in * by (eauto; my_set_solver); eauto.
+  - intros τ1 **; destruct τ1; inversion Heqr; simpl; subst.
+    destruct τ1; inversion Heqr; simpl; subst.
+    auto_exists_L.
+    eapply subst_fine_rty_r. simpl in *. intuition; eauto.
+Qed.
 
 Lemma open_rty_idemp: forall u (v: value)  (τ: rty) (k: nat),
     lc v ->
@@ -303,22 +318,24 @@ Proof.
   my_set_solver.
 Qed.
 
+Lemma fact1_rty: forall (u v: value) (A: rty) i j,
+    i <> j -> {i ~r> u} ({j ~r> v} A) = {j ~r> v} A -> {i ~r> u} A = A.
+Proof.
+  pose fact1_value.
+  pose fact1_qualifier.
+  pose fact1_td.
+  intros u v. induction A; simpl; intros; eauto; f_equal; simp_hyps; eauto.
+Qed.
+
 Lemma open_rec_lc_rty: ∀ (u : value) τ (k : nat), lc_rty τ -> {k ~r> u} τ = τ.
 Proof.
-Admitted.
-
-
-(* Lemma closed_rty_td_congr d ρ a : *)
-(*   closed_rty d ρ -> *)
-(*   pure_rty ρ -> *)
-(*   (forall x : atom, x ∉ d -> closed_td d (a ^a^ x)) -> *)
-(*   closed_rty d (ρ !<[ a ]>). *)
-(* Proof. *)
-(*   inversion 1. intros. *)
-(*   econstructor. *)
-(*   - auto_exists_L. intros. specialize_with x. inversion H3. eauto. *)
-(*   - simpl. *)
-(*   econstructor; simpl; eauto. *)
-(*   - auto_exists_L_intros. lc_ *)
-(*     simpl. my_set_solver. *)
-(* Qed. *)
+  pose open_rec_lc_phi1.
+  pose open_rec_lc_td.
+  intros. generalize dependent k.
+  induction H; simpl; intros; auto; f_equal; eauto;
+    try (rewrite open_rec_lc_value; eauto).
+  - auto_pose_fv x. apply fact1_rty with (j := 0) (v := x); eauto.
+    rewrite H0; eauto. my_set_solver.
+  - auto_pose_fv x. apply fact1_td with (j := 0) (v := x); eauto.
+    apply open_rec_lc_td; my_set_solver.
+Qed.

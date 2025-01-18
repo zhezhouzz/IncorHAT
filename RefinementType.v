@@ -181,6 +181,16 @@ Proof.
   induction 1; eauto.
 Qed.
 
+Lemma tdable_rty_open: forall τ k (v_x: value), tdable_rty ({ k ~r> v_x} τ) <-> tdable_rty τ.
+Proof.
+  split; induction τ; simpl; intros; inversion H; subst; eauto.
+Qed.
+
+Lemma tdable_rty_subst: forall τ x (v_x: value), tdable_rty ({ x := v_x}r τ) <-> tdable_rty τ.
+Proof.
+  split; induction τ; simpl; intros; inversion H; subst; eauto.
+Qed.
+
 Lemma is_tm_rty_open: forall τ k (v_x: value), is_tm_rty ({ k ~r> v_x} τ) <-> is_tm_rty τ.
 Proof.
   split; induction τ; simpl; intros; inversion H; subst; eauto.
