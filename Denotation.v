@@ -438,7 +438,7 @@ Qed.
 Ltac rewrite_measure_irrelevant :=
   let t := (rewrite <- ?open_preserves_rty_measure;
             rewrite <- ?open_preserves_td_measure;
-            lia) in
+            simpl; lia) in
   match goal with
   | H : context [rtyR _ _ _] |- _ =>
       setoid_rewrite rtyR_measure_irrelevant' in H; [ | t .. ]

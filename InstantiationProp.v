@@ -157,6 +157,12 @@ Proof.
   msubst_tac.
 Qed.
 
+Lemma open_tdId_same: forall k v,
+    {k ~a> v} tdId = tdId.
+Proof.
+  eauto.
+Qed.
+
 Lemma msubst_tdComp: forall (Γv: env) A1 A2,
     closed_env Γv ->
     m{Γv}a (tdComp A1 A2) = (tdComp (m{Γv}a A1) (m{Γv}a A2)).
@@ -341,6 +347,10 @@ Ltac msubst_simp :=
   | |- context [ m{ _ }a (tdLitOut _ _ _ _ _) ] => rewrite msubst_tdLitOut
   | H: context [ m{ _ }a (tdEx _ _ _) ] |- _ => rewrite msubst_tdEx in H
   | |- context [ m{ _ }a (tdEx _ _ _) ] => rewrite msubst_tdEx
+  | H: context [ m{ _ }a tdId ] |- _ => rewrite msubst_tdId in H
+  | |- context [ m{ _ }a tdId ] => rewrite msubst_tdId
+  | H: context [ { _ ~a> _ } tdId ] |- _ => rewrite open_tdId_same in H
+  | |- context [ { _ ~a> _ } tdId ] => rewrite open_tdId_same
   | H: context [ m{ _ }t (tlete _ _) ] |- _ => rewrite msubst_lete in H
   | |- context [ m{ _ }t (tlete _ _) ] => rewrite msubst_lete
   | H: context [ m{ _ }t (tleteffop _ _ _) ] |- _ => rewrite msubst_tleteffop in H

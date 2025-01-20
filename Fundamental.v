@@ -237,11 +237,11 @@ Proof.
       repeat msubst_simp.
     }
     finerty_destruct ρ; intros.
-    + simpl in *. simp_hyps. assert (α = β). admit. subst. apply H6. apply H3.
+    + simpl in *. simp_hyps; subst. repeat auto_apply.
       intros. apply value_reduction_any_ctx. basic_typing_regular_simp.
-    + exists ((m{Γv}v) v). simpl in *. simp_hyps. intuition.
+    + exists ((m{Γv}v) v). simpl in *. simp_hyps; subst. intuition.
       * exists ((m{Γv}v) v). intuition. apply value_reduction_any_ctx. lc_solver_plus.
-      * assert (α = β). admit. subst. apply value_reduction_any_ctx. basic_typing_regular_simp.
+      * apply value_reduction_any_ctx. basic_typing_regular_simp.
   (* [TSub] *)
   - intros Γ e τ1 τ2 HWFτ2 _ HDτ1 Hsub Γv HΓv. specialize (HDτ1 _ HΓv).
     apply Hsub in HDτ1; auto.
@@ -277,7 +277,24 @@ Proof.
   - admit.
   - (* [TApp] *) intros Γ v1 v2 e ρ1 b2 ϕ2 A ρ B L HTe HDe HWF HTv2 HDv2 HTv1 HDv1 Γv HΓv.
     ospecialize* HDv1; eauto. ospecialize* HDv2; eauto. repeat msubst_simp.
-    simpl in HDv1.
+    rewrite msubst_open_td; eauto. repeat msubst_simp.
+    eapply denotation_application_tletapp_base; eauto.
+    + eapply msubst_preserves_closed_rty_empty in HWF; eauto. repeat msubst_simp. rewrite msubst_open_td in HWF; eauto. repeat msubst_simp. admit. admit.
+    + admit.
+    + intros v_x Hv_x.
+      auto_pose_fv x.
+      remember (<[x:=v_x]> Γv) as Γv'.
+      ospecialize* (HDe x _ Γv'); eauto; subst. misc_solver.
+      { econstructor; eauto; simp_tac.
+        + rtyR_regular_simp; misc_solver. admit. admit.
+          (* rewrite closed_rty_base_td in HTv1. simp_hyp HTe. *)
+          (* rewrite closed_rty_base_flip; eauto. *)
+        + rewrite msubst_open_rty; eauto. repeat msubst_simp. admit. admit.
+      }
+      rewrite msubst_insert_fresh_rty in HDe. repeat msubst_simp.
+      rewrite open_rec_lc_rty.
+      erewrite msubst_intro_tm; eauto.
+      all: rtyR_regular_simp; misc_solver.
   (* [TApp] *)
   - intros Γ v1 v2 e ρ ρx ρ2 A A' B L HWF HTv2 HDv2 HTv1 HDv1 HTe HDe Γv HΓv.
     ospecialize* HDv1; eauto. ospecialize* HDv2; eauto. repeat msubst_simp.

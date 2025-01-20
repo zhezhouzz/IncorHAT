@@ -489,14 +489,14 @@ Ltac lc_simpl :=
 
 Lemma denotation_application_tlete_base b ϕ A ρ B e_x e:
   (* (exists v_x: value, ⟦ {:b|ϕ} ⟧ v_x) -> *)
-  closed_rty ∅ ([:b|ϕ]!<[A]>) ->
   closed_rty ∅ (ρ !<[ (tdEx b ϕ A) ○ B ]>) ->
   ∅ ⊢t tlete e_x e ⋮t ⌊ρ⌋ ->
   ⟦ [:b|ϕ]!<[A]> ⟧ e_x ->
   (forall (v_x : value), ⟦ {:b|ϕ} ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
   (⟦ ρ !<[ (tdEx b ϕ A) ○ B ]> ⟧) (tlete e_x e).
 Proof.
-  intros Hclosed1 Hclosed2 HTe He_x He.
+  intros Hclosed2 HTe He_x He.
+  assert (closed_rty ∅ ([:b|ϕ]!<[A]>)) as Hclosed1 by solve [simpl in *; intuition].
   split; [| split]; eauto.
   finerty_destruct ρ.
   - intros α β v H.
@@ -534,6 +534,21 @@ Proof.
     exists v. split; auto.
     eapply reduction_tlete'; eauto. lc_solver_plus.
 Qed.
+
+Lemma denotation_application_tletapp_base ρ1 b2 ϕ2 A ρ B (v1 v2: value) e:
+  closed_rty ∅ (ρ !<[ ((tdEx b2 ϕ2 A) ^a^ v2) ○ B ]>) ->
+  ∅ ⊢t tletapp v1 v2 e ⋮t ⌊ρ⌋ ->
+  ⟦ρ1⟧ v2 ->
+  ⟦ρ1⇨[:b2|ϕ2]!<[A]>⟧ v1 ->
+  (forall (v_x : value), ⟦ {:b2|ϕ2} ^r^ v2 ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
+  ⟦ ρ !<[ ((tdEx b2 ϕ2 A) ^a^ v2) ○ B ]> ⟧ (tletapp v1 v2 e).
+Proof.
+  intros. eapply rtyR_refine with (e1 := tlete (mk_app_e_v v1 v2) e). is_tm_rty_tac. simpl. auto. admit.
+  apply denotation_application_tlete_base; eauto.
+  admit. clear H3.
+  simpl in H2. simp_hyp H2. ospecialize (H6 v2 _);
+  repeat rewrite_measure_irrelevant; eauto.
+Admitted.
 
 Lemma denotation_application_lam Tx T ρ τ e :
   is_tm_rty τ -> Tx ⤍ T = ⌊ ρ⇨τ ⌋ ->
