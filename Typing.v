@@ -72,7 +72,7 @@ Reserved Notation "Γ '⊢' e '⋮' τ"  (at level 20).
 semantic subtyping in the mechanization. *)
 Definition subtyping (Γ: listctx rty) (ρ1 ρ2: rty) : Prop :=
   (* Assume [ρ1] and [ρ2] are valid [rty]s. *)
-  ⌊ ρ1 ⌋ = ⌊ ρ2 ⌋ /\
+  ⌊ ρ1 ⌋ = ⌊ ρ2 ⌋ /\ (is_tm_rty ρ1 <-> is_tm_rty ρ2) /\
   forall Γv, ctxRst Γ Γv ->
         forall e, ⟦m{ Γv }r ρ1⟧ e → ⟦m{ Γv }r ρ2⟧ e.
 
@@ -81,6 +81,7 @@ Notation " Γ '⊢' τ1 '<⋮' τ2 " := (subtyping Γ τ1 τ2) (at level 20, τ1
 Definition join (Γ: listctx rty) (ρ1 ρ2 ρ3: rty) : Prop :=
   (* Assume [ρ1] and [ρ2] are valid [rty]s. *)
   ⌊ ρ1 ⌋ = ⌊ ρ2 ⌋ /\ ⌊ ρ1 ⌋ = ⌊ ρ3 ⌋ /\
+    (is_tm_rty ρ1 <-> is_tm_rty ρ2) /\ (is_tm_rty ρ1 <-> is_tm_rty ρ3) /\
     forall Γv, ctxRst Γ Γv ->
           forall e, ⟦m{ Γv }r ρ3⟧ e <-> ⟦m{ Γv }r ρ1⟧ e \/ ⟦m{ Γv }r ρ2⟧ e.
 
@@ -223,6 +224,13 @@ Proof.
   qauto.
 Qed.
 
+Lemma subtyping_preserves_is_tm_rty Γ τ1 τ2 :
+  Γ ⊢ τ1 <⋮ τ2 -> is_tm_rty τ1 <-> is_tm_rty τ2.
+Proof.
+  qauto.
+Qed.
+
+
 Lemma effop_typing_preserves_basic_typing Γ ρ op :
   Γ ⊢ op ⋮o ρ ->
   ⌊ρ⌋ = ty_of_op op.
@@ -236,6 +244,18 @@ with tm_typing_regular_wf : forall (Γ: listctx rty) (e: tm) (τ: rty),
     Γ ⊢ e ⋮t τ -> Γ ⊢WF τ.
 Proof.
   all: destruct 1; eauto.
+Qed.
+
+Lemma value_tm_typing_regular_is_tm_rty:
+  (forall (Γ: listctx rty) (v: value) (ρ: rty),
+      Γ ⊢ v ⋮v ρ -> is_tm_rty ρ) /\
+    (forall (Γ: listctx rty) (e: tm) (τ: rty),
+        Γ ⊢ e ⋮t τ -> is_tm_rty τ).
+Proof.
+  apply value_term_type_check_mutind; intros; cbn; subst; auto.
+  all: try solve [ rewrite <- subtyping_preserves_is_tm_rty; eauto].
+  sinvert H4. simp_hyps. eauto.
+  auto_pose_fv x. ospecialize * (H3 x); eauto.
 Qed.
 
 Lemma value_tm_typing_regular_basic_typing:

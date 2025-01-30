@@ -34,12 +34,17 @@ Ltac finerty_destruct τ :=
 
 Ltac closed_simp :=
   (repeat match goal with
+     | [H: ⟦ _ ⟧ _ |- closed_rty _ _ ] => apply rtyR_typed_closed in H; simp_hyp H
      | [H: ctxRst _ ?Γv |- closed_env ?Γv] => eapply ctxRst_closed_env; eauto
      | [H: ctxRst _ ?Γv |- map_Forall _ ?Γv] => eapply ctxRst_lc in H; eauto
      | [H: _ ⊢ _ ⋮t _ |- closed_rty _ _ ] => apply tm_typing_regular_wf in H
      | [H: _ ⊢ _ ⋮v _ |- closed_rty _ _ ] => apply value_typing_regular_wf in H
      | [H: ?Γ ⊢WF _ , H': ctxRst ?Γ _ |- closed_rty _ _ ] =>
          eapply (msubst_preserves_closed_rty_empty _ _ _ H') in H; eauto
+     | [H: closed_rty ∅ ?τ |- context [ (m{ _ }r) ?τ] ] =>
+         rewrite msubst_fresh_rty by solve [sinvert H; set_solver]
+     | [H: closed_rty ∅ ?τ, H': context [ (m{ _ }r) ?τ] |- _ ] =>
+         rewrite msubst_fresh_rty in H' by solve [sinvert H; set_solver]
      end); repeat msubst_simp.
 
 Ltac lc_simpl :=

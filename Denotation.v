@@ -282,6 +282,12 @@ Proof.
   my_set_solver.
 Qed.
 
+Lemma mk_eq_constant_over_closed_rty c : closed_rty ∅ (mk_eq_constant_over c).
+Proof.
+  econstructor. unshelve (repeat econstructor). exact ∅.
+  my_set_solver.
+Qed.
+
 Lemma mk_eq_constant_denote_rty c:
   ⟦ mk_eq_constant c ⟧ c.
 Proof.
@@ -294,9 +300,9 @@ Qed.
 Lemma mk_eq_constant_over_denote_rty c:
   ⟦ mk_eq_constant_over c ⟧ c.
 Proof.
-  simpl. split; [| split]; cbn; eauto using mk_eq_constant_closed_rty.
+  simpl. split; [| split]; cbn; eauto using mk_eq_constant_over_closed_rty.
   intros.
-  pose value_reduction_any_ctx.
+  apply value_reduction_refl' in H.
   destruct v; simpl in *; try hauto.
 Qed.
 
