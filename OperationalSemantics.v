@@ -273,6 +273,17 @@ Proof.
     sinvert H0. eauto.
 Qed.
 
+Lemma value_reduction_refl': forall (v1: value) v2, (∀ α, α ⊧ v1 ↪*{ α} v2) -> v2 = v1.
+Proof.
+  intros * H. specialize (H []).
+  sinvert H; easy.
+Qed.
+
+Lemma value_reduction_any_ctx: forall (v1: value) α, lc v1 -> α ⊧ v1 ↪*{ α} v1.
+Proof.
+  intros. econstructor; eauto.
+Qed.
+
 Lemma reduction_tleteffop:  forall op v2 e α β (v : value),
     α ⊧ (tleteffop op v2 e) ↪*{ β} v ->
     exists (c2 c_x: constant) βx,
@@ -297,17 +308,6 @@ Proof.
   intros.
   sinvert H.
   sinvert H0. simplify_list_eq. eauto.
-Qed.
-
-Lemma value_reduction_refl': forall (v1: value) v2, (∀ α, α ⊧ v1 ↪*{ α} v2) -> v2 = v1.
-Proof.
-  intros * H. specialize (H []).
-  sinvert H; easy.
-Qed.
-
-Lemma value_reduction_any_ctx: forall (v1: value) α, lc v1 -> α ⊧ v1 ↪*{ α} v1.
-Proof.
-  intros. econstructor; eauto.
 Qed.
 
 (** NOTE: reduction lemmas for underapproximation *)
@@ -398,4 +398,61 @@ Proof.
   - simp_hyps.
     eapply reduction_tlete'; eauto. lc_solver_plus.
     rewrite reduction_tlete_value in H1. simp_hyps. eauto.
+Qed.
+
+Lemma reduction_tlete_iff:
+  ∀ (e_x e : tm) (α β : list evop) (v : value),
+    α ⊧ tlete e_x e ↪*{ β} v
+    <-> (body e /\ ∃ (βx : trace) (v_x : value),
+          α ⊧ e_x ↪*{ βx} v_x ∧ βx ⊧ e ^t^ v_x ↪*{ β} v).
+Proof.
+  split.
+  - split. apply multi_step_regular in H. simp_hyps. lc_solver.
+    apply reduction_tlete; eauto.
+  - intros. simp_hyps. eapply reduction_tlete'; eauto.
+Qed.
+
+Lemma reduction_tletapp': forall (v1 v2: value) e α β (v : value),
+    (body e /\ lc v2 /\ exists (βx: trace) (v_x: value),
+        α ⊧ mk_app_e_v v1 v2 ↪*{ βx } v_x /\
+          βx ⊧ (e ^t^ v_x) ↪*{ β } v) ->
+    α ⊧ tletapp v1 v2 e ↪*{ β} v.
+Proof.
+  intros. destruct H as (Hlc1 & Hlc2 & βx & v_x & Hst1 & Hst2).
+  apply reduction_mk_app_e_v in Hst1; eauto.
+  sinvert Hst1. sinvert H.
+  - rewrite reduction_nest_tlete in H0.
+    rewrite reduction_tletapp_lam. intuition. lc_solver.
+    erewrite reduction_tlete_iff. intuition; eauto.
+  - rewrite reduction_tletapp_fix. intuition.
+    simpl in *. rewrite reduction_tletapp_lam in H0.
+    rewrite reduction_tletapp_lam. intuition.
+    rewrite reduction_nest_tlete in H2.
+    erewrite reduction_tlete_iff. intuition; eauto.
+Qed.
+
+Lemma reduction_tletapp_iff: forall (v1 v2: value) e α β (v : value),
+    α ⊧ tletapp v1 v2 e ↪*{ β} v <->
+    (body e /\ lc v2 /\ exists (βx: trace) (v_x: value),
+        α ⊧ mk_app_e_v v1 v2 ↪*{ βx } v_x /\
+          βx ⊧ (e ^t^ v_x) ↪*{ β } v).
+Proof.
+  split.
+  - intros. intuition.
+    + apply multi_step_regular in H. simp_hyps. lc_solver.
+    + apply multi_step_regular in H. simp_hyps. lc_solver.
+    + apply reduction_tletapp; eauto.
+  - apply reduction_tletapp'.
+Qed.
+
+Lemma reduction_tleteffop_iff:  forall op v2 e α β (v : value),
+    α ⊧ (tleteffop op v2 e) ↪*{ β} v <->
+    body e /\ exists (c2 c_x: constant) βx,
+      v2 = c2 /\ α ⊧{op ~ c2}⇓{ βx }{ c_x } /\ βx ⊧ (e ^t^ c_x) ↪*{ β} v.
+Proof.
+  split.
+  - intuition.
+    + apply multi_step_regular in H. simp_hyps. rewrite leteffop_lc_body in H. intuition.
+    + apply reduction_tleteffop; eauto.
+  - intros. simp_hyps. subst. repeat (econstructor; eauto).
 Qed.

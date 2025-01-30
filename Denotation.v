@@ -291,6 +291,15 @@ Proof.
   destruct v; simpl in *; try hauto.
 Qed.
 
+Lemma mk_eq_constant_over_denote_rty c:
+  ⟦ mk_eq_constant_over c ⟧ c.
+Proof.
+  simpl. split; [| split]; cbn; eauto using mk_eq_constant_closed_rty.
+  intros.
+  pose value_reduction_any_ctx.
+  destruct v; simpl in *; try hauto.
+Qed.
+
 Lemma closed_base_rty_qualifier_and B ϕ1 ϕ2 Γ:
   closed_rty Γ {: B | ϕ1 } ->
   closed_rty Γ {: B | ϕ2 } ->

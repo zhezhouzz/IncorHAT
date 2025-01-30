@@ -19,4 +19,5 @@ Denotation.v
 InstantiationProp.v
 DenotationProp.v
 Typing.v
+TypingProp.v
 Fundamental.v

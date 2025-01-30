@@ -208,6 +208,7 @@ Qed.
 
 (** Shorthands, used in typing rules *)
 Definition mk_eq_constant c := [: ty_of_const c | b0:c= c ].
+Definition mk_eq_constant_over c := {: ty_of_const c | b0:c= c }.
 Definition mk_bot ty := [: ty | mk_q_under_bot ].
 Definition mk_top ty := [: ty | mk_q_under_top ].
 Definition mk_eq_var ty (x: atom) := [: ty | b0:x= x ].
