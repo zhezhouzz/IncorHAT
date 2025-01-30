@@ -41,12 +41,16 @@ Ltac rtyR_regular_simp :=
      end); basic_typing_regular_simp.
 
 Ltac is_tm_rty_tac :=
-  repeat match goal with
-    | [H: _ |- is_tm_rty (_ ^r^ _) ] => rewrite is_tm_rty_open; eauto
-    | [H: _ |- is_tm_rty ((m{ _ }r) _) ] => rewrite is_tm_rty_msubst; eauto
-    | [H: _ |- is_tm_rty (({ _ := _ }r) _) ] => rewrite is_tm_rty_subst; eauto
-    | [H: closed_rty _ (_ ⇨ ?τ) |- is_tm_rty ?τ] => eauto using is_tm_rty_retrty
-    end.
+  match goal with
+  | [H: _ |- is_tm_rty _ ] =>
+      (repeat match goal with
+         | [H: _ |- is_tm_rty (_ ^r^ _) ] => rewrite is_tm_rty_open; eauto
+         | [H: _ |- is_tm_rty ((m{ _ }r) _) ] => rewrite is_tm_rty_msubst; eauto
+         | [H: _ |- is_tm_rty (({ _ := _ }r) _) ] => rewrite is_tm_rty_subst; eauto
+         | [H: closed_rty _ (_ ⇨ ?τ) |- is_tm_rty ?τ] => eauto using is_tm_rty_retrty
+         end)
+  end.
+
 
 Lemma rtyR_refine_aux n: forall τ e1 e2,
     rty_measure τ <= n ->

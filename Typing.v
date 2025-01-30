@@ -138,7 +138,7 @@ Inductive term_type_check : listctx rty -> tm -> rty -> Prop :=
     (forall x, x ∉ L ->
           (Γ ++ [(x, ρ1 ⇨ τ1)]) ⊢ (e2 ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
     Γ ⊢WF (τ2!<[ A1 ○ A2 ]>) ->
-    Γ ⊢ e1 ⋮t (ρ1 ⇨ τ1 !<[ A1 ]>) ->
+    Γ ⊢ e1 ⋮t ((ρ1 ⇨ τ1) !<[ A1 ]>) ->
     Γ ⊢ (tlete e1 e2) ⋮t (τ2!<[ A1 ○ A2 ]>)
 | TAppBase: forall Γ (v1 v2: value) e ρ2 b1 ϕ1 A1 τ2 A2 (L: aset),
     (forall x, x ∉ L ->
@@ -152,7 +152,7 @@ Inductive term_type_check : listctx rty -> tm -> rty -> Prop :=
           (Γ ++ [(x, (ρ11 ⇨ ρ12) ^r^ v2)]) ⊢ (e ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
     Γ ⊢WF (τ2!<[ (A1 ^a^ v2) ○ A2 ]>) ->
     Γ ⊢ v2 ⋮v ρ2 ->
-    Γ ⊢ v1 ⋮v (ρ2 ⇨ (ρ11 ⇨ ρ12!<[A1]>)) ->
+    Γ ⊢ v1 ⋮v (ρ2 ⇨ ((ρ11 ⇨ ρ12)!<[A1]>)) ->
     Γ ⊢ (tletapp v1 v2 e) ⋮t (τ2!<[ (A1 ^a^ v2) ○ A2 ]>)
 | TAppOp: forall Γ (op: effop) (v2: value) e ρ2 b1 ϕ1 A1 τ2 A2 (L: aset),
     (forall x, x ∉ L ->
@@ -438,10 +438,16 @@ Proof.
 Qed.
 
 Ltac msubst_erase_simp :=
-  match goal with
-  | [H: context [ ⌊ (m{ _ }r) _ ⌋ ] |- _ ] => setoid_rewrite <- rty_erase_msubst_eq in H
-  | [H: _ |- context [ ⌊ (m{ _ }r) _ ⌋ ] ] => setoid_rewrite <- rty_erase_msubst_eq
-  end.
+  repeat match goal with
+    | [H: context [ ⌊ ?τ ⌋ ] |- _ ] =>
+        match τ with
+        | context [ m{_}r _ ] => setoid_rewrite <- rty_erase_msubst_eq in H
+        end
+    | [H: _ |- context [ ⌊ ?τ ⌋ ]] =>
+        match τ with
+        | context [ m{_}r _ ] => setoid_rewrite <- rty_erase_msubst_eq
+        end
+    end.
 
 Lemma langA_ex_spec: forall b ϕ (A: transducer) α β,
     (a⟦tdEx b ϕ A⟧) α β <-> exists (v_x: value), (⟦{:b|ϕ}⟧) v_x /\ (a⟦A ^a^ v_x⟧) α β.

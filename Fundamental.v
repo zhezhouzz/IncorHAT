@@ -47,23 +47,60 @@ Proof.
   my_set_solver.
 Qed.
 
-Check closed_rty_fine.
-
 Lemma pure_rty_open ρ (v: value): pure_rty (ρ ^r^ v) = pure_rty ρ.
 Proof.
   induction ρ; simpl; intros; eauto.
 Qed.
 
+Ltac ok_solver :=
+  solve [ repeat (match goal with
+          | [H: ok_ctx ?Γ |- ok_ctx (?Γ ++ [(?x, ?ρ)]) ] => econstructor; eauto
+          | [H: _ |- _ ∉ _ ] => my_set_solver
+          end) ].
+
+Ltac fine_solver_aux :=
+  solve [repeat (match goal with
+                 | [H: _ |- pure_rty ({: _ | _ })] => simpl; auto
+                 | [H: _ |- pure_rty ([: _ | _ ])] => simpl; auto
+                 | [H: _ |- pure_rty ( _ ^r^ _)] => rewrite pure_rty_open
+                 | [ H: _ ⊢WF _ |- pure_rty _ ] =>
+                     apply closed_rty_fine in H; eauto; simpl in H; intuition; eauto
+                 | [ H: _ ⊢WF _ |- fine_rty _ ] =>
+                     apply closed_rty_fine in H; eauto; simpl in H;intuition; eauto
+                 end)].
+
 Ltac fine_solver :=
-  repeat (match goal with
-          | [H: _ |- pure_rty ({: _ | _ })] => simpl; auto
-          | [H: _ |- pure_rty ([: _ | _ ])] => simpl; auto
-          | [H: _ |- pure_rty ( _ ^r^ _)] => rewrite pure_rty_open
-          | [ H: _ ⊢WF _ |- pure_rty _ ] =>
-              apply closed_rty_fine in H; eauto; simpl in H; intuition; eauto
-          | [ H: _ ⊢WF _ |- fine_rty _ ] =>
-              apply closed_rty_fine in H; eauto; simpl in H;intuition; eauto
-          end).
+  match goal with
+  | [H: _ |- pure_rty _ ] => fine_solver_aux
+  | [H: _ |- fine_rty _ ] => fine_solver_aux
+  end.
+
+Ltac basic_typing_simp :=
+  repeat match goal with
+    | [H: ?Γ ⊢ _ ⋮v _ |- ⌊?Γ⌋* ⊢t _ ⋮t _ ] => apply value_typing_regular_basic_typing in H; simpl in H
+    | [H: ?Γ ⊢ _ ⋮v _ |- ⌊?Γ⌋* ⊢t _ ⋮v _ ] => apply value_typing_regular_basic_typing in H; simpl in H
+    | [H: ?Γ ⊢ _ ⋮t _ |- ⌊?Γ⌋* ⊢t _ ⋮t _ ] => apply tm_typing_regular_basic_typing in H; simpl in H
+    | [H: ?Γ ⊢ _ ⋮t _ |- ⌊?Γ⌋* ⊢t _ ⋮v _ ] => apply tm_typing_regular_basic_typing in H; simpl in H
+    | [H: (_ ⊢ _ ⋮t _) |- (_ ⊢t  _ ⋮t _) ] => apply tm_typing_regular_basic_typing in H
+    end.
+
+Ltac simp_tac :=
+  closed_simp; basic_typing_simp; msubst_erase_simp; basic_typing_regular_simp.
+
+Ltac closed_solver :=
+  match goal with
+  | [H: _ |- closed_rty _ ] => simp_tac
+  | [H: _ |- closed_env _ ] => simp_tac
+  end.
+
+Ltac lc_solver :=
+  match goal with
+  | [H: _ |- lc _] => simp_tac; lc_solver_plus
+  end.
+
+Ltac misc_solver :=
+  repeat msubst_simp;
+  try fine_solver; try is_tm_rty_tac; try ok_solver; try closed_solver; try lc_solver.
 
 Ltac finerty_destruct τ :=
   destruct τ; repeat msubst_simp;
@@ -95,19 +132,6 @@ Qed.
 
   (* At some point the proof is very slow without marking [msubst] opaque. *)
 Opaque msubst.
-
-Ltac basic_typing_simp :=
-  repeat match goal with
-    | [H: ?Γ ⊢ _ ⋮v _ |- ⌊?Γ⌋* ⊢t _ ⋮t _ ] => apply value_typing_regular_basic_typing in H; simpl in H
-    | [H: ?Γ ⊢ _ ⋮v _ |- ⌊?Γ⌋* ⊢t _ ⋮v _ ] => apply value_typing_regular_basic_typing in H; simpl in H
-    | [H: ?Γ ⊢ _ ⋮t _ |- ⌊?Γ⌋* ⊢t _ ⋮t _ ] => apply tm_typing_regular_basic_typing in H; simpl in H
-    | [H: ?Γ ⊢ _ ⋮t _ |- ⌊?Γ⌋* ⊢t _ ⋮v _ ] => apply tm_typing_regular_basic_typing in H; simpl in H
-    | [H: (_ ⊢ _ ⋮t _) |- (_ ⊢t  _ ⋮t _) ] => apply tm_typing_regular_basic_typing in H
-    end.
-
-Ltac simp_tac :=
-  closed_simp; basic_typing_simp.
-(* msubst_erase_simp *)
 
 Lemma closed_rty_arr:
   ∀ (L : aset) (ρ τ : rty),
@@ -191,6 +215,8 @@ Ltac restructure_typing HOrg :=
   end.
 
 Ltac restructure_typing_regular :=
+  let HOrg := fresh "HOrg" in
+  restructure_typing HOrg;
   match goal with
   | [H: ctxRst ?Γ _, HOrg: ?Γ ⊢ ?e ⋮t ?τ |- (⟦(m{ _ }r) ?τ⟧) ((m{_}t ?e))] =>
       pose (tm_typing_regular_basic_typing _ _ _ HOrg) as HBTOrg;
@@ -198,6 +224,15 @@ Ltac restructure_typing_regular :=
   | [H: ctxRst ?Γ _, HOrg: ?Γ ⊢ ?e ⋮v ?τ |- (⟦(m{ _ }r) ?τ⟧) (treturn (m{_}v ?e))] =>
       pose (value_typing_regular_basic_typing _ _ _ HOrg) as HBTOrg;
       pose (msubst_preserves_basic_typing_value_empty _ _  H _ _ HBTOrg) as HBTOrgMsubst
+  end.
+
+Ltac auto_ctx_letbinding v_x :=
+  match goal with
+  | [H: ∀ _, _ ∉ _ -> ∀ _, (ctxRst (?Γ ++ [(_, ?τ)]) _) -> _, H': ctxRst ?Γ ?Γv |- _ ] =>
+      let x := fresh "x" in
+      auto_pose_fv x; repeat specialize_with x;
+      assert (ctxRst (Γ ++ [(x, τ)]) (<[x:=v_x]> Γv)) as HΓv';
+      try (apply ctxRst_insert_easy; eauto; misc_solver)
   end.
 
 (** Combined fundamental theorem for value typing (refinemnet types) and term
@@ -227,95 +262,78 @@ Proof.
     sinvert H. cbn in H3.
     dup_hyp H3 (fun H => apply basic_typing_base_canonical_form in H).
     simp_hyps. subst. sinvert H3.
-    eauto using mk_eq_constant_denote_rty. fine_solver.
+    eauto using mk_eq_constant_denote_rty. misc_solver.
   (* [TFuncVar] *)
   - intros Γ x ρ τ Hwf Hfind Γv HΓv.
-    dup_hyp HΓv (fun H => eapply ctxRst_ctxfind in H; eauto). simp_hyps.
-    repeat msubst_simp.
-    by rewrite H0. fine_solver.
+    dup_hyp HΓv (fun H => eapply ctxRst_ctxfind in H; eauto).
+    { simp_hyps. repeat msubst_simp. by rewrite H0. }
+    misc_solver.
   (* [TFun] *)
-  - intros Γ Tx ρ e τ L HWF Ht HDe He Γv HΓv. repeat msubst_simp.
-    eapply denotation_application_lam.
-    + is_tm_rty_tac. simp_tac.
-    + simpl. msubst_erase_simp; subst; eauto.
-    {
-      assert (Γ ⊢ vlam Tx e ⋮v (ρ⇨τ)) by eauto using value_type_check.
-      eapply value_typing_regular_basic_typing in H.
-      eapply msubst_preserves_basic_typing_value_empty in H; eauto.
-      repeat msubst_simp.
-      econstructor. apply_eq H. cbn. subst. reflexivity.
-    } {
-      eapply_eq msubst_preserves_closed_rty_empty; eauto.
+  - intros Γ Tx ρ e τ L HWF Ht HDe He Γv HΓv.
+    restructure_typing_regular.
+    repeat msubst_simp. subst.
+    eapply denotation_application_lam; eauto.
+    + misc_solver.
+    + simpl. simp_tac; eauto.
+    + eapply_eq msubst_preserves_closed_rty_empty; eauto.
       msubst_simp.
-    }
-    intros v_x Hv_x.
-    auto_pose_fv x. repeat specialize_with x.
-    assert (ctxRst (Γ ++ [(x, ρ)]) (<[x:=v_x]> Γv)) as HΓv'. {
-      apply ctxRst_insert_easy; eauto. my_set_solver. fine_solver.
-    }
-    ospecialize* HDe; eauto.
-    rewrite <- msubst_intro_tm in HDe by
-        (eauto using ctxRst_closed_env, ctxRst_lc, rtyR_closed_value;
-         simpl_fv; my_set_solver).
-    rewrite <- msubst_intro_rty in HDe by
-        (eauto using ctxRst_closed_env, ctxRst_lc, rtyR_closed_value;
-         simpl_fv; my_set_solver).
-    eauto.
+    + intros v_x Hv_x.
+      auto_ctx_letbinding v_x.
+      ospecialize* HDe; eauto.
+      rewrite <- msubst_intro_tm in HDe by
+          (eauto using ctxRst_closed_env, ctxRst_lc, rtyR_closed_value;
+           simpl_fv; my_set_solver).
+      rewrite <- msubst_intro_rty in HDe by
+          (eauto using ctxRst_closed_env, ctxRst_lc, rtyR_closed_value;
+           simpl_fv; my_set_solver).
+      eauto.
   (* [TFix] *)
-  - intros Γ Tx ϕ e τ T L HWF Hlam HDlam He Γv HΓv. repeat msubst_simp.
+  - intros Γ Tx ϕ e τ T L HWF Hlam HDlam He Γv HΓv.
+    restructure_typing_regular.
+    repeat msubst_simp.
     eapply denotation_application_fixed; eauto.
-    { is_tm_rty_tac. rtyR_regular_simp; eauto. }
-    by rewrite <- rty_erase_msubst_eq.
-    {
-      assert (Γ ⊢ vfix (Tx ⤍ T) (vlam (Tx ⤍ T) e) ⋮v ({:Tx|ϕ}⇨τ))
+    + misc_solver.
+    + by rewrite <- rty_erase_msubst_eq.
+    + assert (Γ ⊢ vfix (Tx ⤍ T) (vlam (Tx ⤍ T) e) ⋮v ({:Tx|ϕ}⇨τ))
         by eauto using value_type_check.
       eapply value_typing_regular_basic_typing in H.
       eapply msubst_preserves_basic_typing_value_empty in H; eauto.
       repeat msubst_simp.
       apply_eq H. cbn. subst. eauto.
-    } {
-      eapply_eq msubst_preserves_closed_rty_empty; eauto.
+    + eapply_eq msubst_preserves_closed_rty_empty; eauto.
       repeat msubst_simp.
-    }
-    intros v_x Hv_x.
-    auto_pose_fv x. repeat specialize_with x.
-    assert (ctxRst (Γ ++ [(x, {:Tx|ϕ})]) (<[x:=v_x]> Γv)) as HΓv'. {
-      apply ctxRst_insert_easy; eauto. my_set_solver.
-      msubst_simp. fine_solver.
-    }
-    ospecialize* HDlam; eauto.
-    rewrite <- msubst_intro_value in HDlam by
-        (eauto using ctxRst_closed_env, ctxRst_lc, rtyR_closed_value;
-         simpl_fv; my_set_solver).
-    repeat msubst_simp.
-    rewrite <- msubst_intro_rty in HDlam by
-        (eauto using ctxRst_closed_env, ctxRst_lc, rtyR_closed_value;
-         simpl_fv; my_set_solver).
-    rewrite msubst_insert_fresh_rty in HDlam by
-      (eauto using ctxRst_closed_env, rtyR_closed_value; simpl_fv; my_set_solver).
-    rewrite_msubst msubst_qualifier in HDlam.
-    rewrite msubst_insert_fresh_qualifier in HDlam by
-      (eauto using ctxRst_closed_env, rtyR_closed_value; simpl_fv; my_set_solver).
-    apply_eq HDlam.
-    simpl. repeat msubst_simp.
-    clear. simplify_map_eq. eauto.
+    + intros v_x Hv_x.
+      auto_ctx_letbinding v_x.
+      ospecialize* HDlam; eauto.
+      rewrite <- msubst_intro_value in HDlam by
+          (eauto using ctxRst_closed_env, ctxRst_lc, rtyR_closed_value;
+           simpl_fv; my_set_solver).
+      repeat msubst_simp.
+      rewrite <- msubst_intro_rty in HDlam by
+          (eauto using ctxRst_closed_env, ctxRst_lc, rtyR_closed_value;
+           simpl_fv; my_set_solver).
+      rewrite msubst_insert_fresh_rty in HDlam by
+          (eauto using ctxRst_closed_env, rtyR_closed_value; simpl_fv; my_set_solver).
+      rewrite_msubst msubst_qualifier in HDlam.
+      rewrite msubst_insert_fresh_qualifier in HDlam by
+          (eauto using ctxRst_closed_env, rtyR_closed_value; simpl_fv; my_set_solver).
+      apply_eq HDlam.
+      simpl. repeat msubst_simp.
+      clear. simplify_map_eq. eauto.
   (* [TEPur] *)
   - intros Γ v ρ HWF Hv HDv Γv HΓv. specialize (HDv _ HΓv).
+    restructure_typing_regular.
     repeat msubst_simp.
-    split; [| split]. {
-      eapply value_typing_regular_basic_typing in Hv.
-      eapply msubst_preserves_basic_typing_value_empty in Hv; eauto.
-      cbn. rewrite <- rty_erase_msubst_eq. eauto.
-    } {
-      eapply_eq msubst_preserves_closed_rty_empty; eauto.
+    split; [| split].
+    + simp_tac; eauto.
+    + eapply_eq msubst_preserves_closed_rty_empty; eauto.
       repeat msubst_simp.
-    }
-    finerty_destruct ρ; intros.
-    + simpl in *. simp_hyps; subst. repeat auto_apply.
-      intros. apply value_reduction_any_ctx. basic_typing_regular_simp.
-    + exists ((m{Γv}v) v). simpl in *. simp_hyps; subst. intuition.
-      * exists ((m{Γv}v) v). intuition. apply value_reduction_any_ctx. lc_solver_plus.
-      * apply value_reduction_any_ctx. basic_typing_regular_simp.
+    + finerty_destruct ρ; intros.
+      * simpl in *. simp_hyps; subst. repeat auto_apply.
+        intros. apply value_reduction_any_ctx. misc_solver.
+      * exists ((m{Γv}v) v). simpl in *. simp_hyps; subst. intuition.
+        { exists ((m{Γv}v) v). intuition. apply value_reduction_any_ctx. misc_solver. }
+        { apply value_reduction_any_ctx. misc_solver. }
   (* [TSub] *)
   - intros Γ e τ1 τ2 HWFτ2 _ HDτ1 Hsub Γv HΓv. specialize (HDτ1 _ HΓv).
     apply Hsub in HDτ1; auto.
@@ -324,74 +342,51 @@ Proof.
     specialize (HDτ1 _ HΓv). specialize (HDτ2 _ HΓv).
     rewrite Hjoin; eauto.
   (* [TLetE] *)
-  - intros Γ e_x e b ϕ A ρ' B L HTe_x HDe_x HWF HTe HDe Γv HΓv. repeat msubst_simp.
+  - intros Γ e_x e b ϕ A ρ' B L HTe_x HDe_x HWF HTe HDe Γv HΓv.
+    restructure_typing_regular.
+    repeat msubst_simp.
     eapply denotation_application_tlete_base; simp_tac.
-    + eapply msubst_preserves_basic_typing_tm_empty in HTe; eauto.
-      auto_exists_L; intros.
-      ospecialize* (HTe_x x); eauto; simp_tac. misc_solver.
-      simpl in HTe_x. rewrite ctx_erase_app in HTe_x.
-      eapply msubst_preserves_basic_typing_tm in HTe_x; eauto.
-      unfold ctx_erase in HTe_x.
-      simpl in *. my_simplify_map. repeat msubst_erase_simp.
-      rewrite msubst_open_var_tm in HTe_x; eauto.
-      all: rtyR_regular_simp; misc_solver.
     + ospecialize* HDe; eauto. repeat msubst_simp.
     + intros v_x Hv_x.
-      auto_pose_fv x.
-      remember (<[x:=v_x]> Γv) as Γv'.
-      ospecialize* (HDe_x x _ Γv'); eauto; subst. misc_solver.
-      { econstructor; eauto; simp_tac.
-        + rtyR_regular_simp; misc_solver. simp_tac.
-          rewrite closed_rty_base_td in HTe. simp_hyp HTe.
-          rewrite closed_rty_base_flip; eauto. }
+      auto_ctx_letbinding v_x.
+      ospecialize* HDe_x; eauto.
       rewrite msubst_insert_fresh_rty in HDe_x. repeat msubst_simp.
       rewrite open_rec_lc_rty.
       erewrite msubst_intro_tm; eauto.
       all: rtyR_regular_simp; misc_solver.
-  - admit.
-  - (* [TApp] *) intros Γ v1 v2 e ρ1 b2 ϕ2 A ρ B L HTe HDe HWF HTv2 HDv2 HTv1 HDv1 Γv HΓv.
+  (* [TLetE] *)
+  - intros Γ e_x e ρ1 τ1 A ρ' B L HTe_x HDe_x HWF HTe HDe Γv HΓv.
+    restructure_typing_regular.
+    repeat msubst_simp.
+    Check denotation_application_tlete_arr.
+    eapply (denotation_application_tlete_arr); simp_tac.
+    + ospecialize* HDe; eauto. repeat msubst_simp.
+    + intros v_x Hv_x.
+      auto_ctx_letbinding v_x. simpl; auto.
+      ospecialize* HDe_x; eauto.
+      rewrite msubst_insert_fresh_rty in HDe_x. repeat msubst_simp.
+      erewrite msubst_intro_tm; eauto.
+      all: rtyR_regular_simp; misc_solver.
+  (* [TApp] *)
+  - intros Γ v1 v2 e ρ1 b2 ϕ2 A ρ B L HTe HDe HWF HTv2 HDv2 HTv1 HDv1 Γv HΓv.
+    restructure_typing_regular.
     assert (lc v2) as Hlcv2. {
       apply value_typing_regular_basic_typing in HTv2.
       lc_solver_plus.
     }
-    assert (⌊ Γ ⌋* ⊢t (mk_app_e_v v1 v2) ⋮t b2). {
+    assert (⌊ Γ ⌋* ⊢t (mk_app_e_v v1 v2) ⋮t b2) as HBTMkApp. {
       eapply mk_app_e_v_has_type; basic_typing_simp; eauto.
     }
     ospecialize* HDv1; eauto. ospecialize* HDv2; eauto. repeat msubst_simp.
-    rewrite msubst_open_td; eauto. repeat msubst_simp.
+    rewrite msubst_open_td by simp_tac. repeat msubst_simp.
     eapply denotation_application_tletapp_base; eauto.
     all: try solve [simp_tac].
-    + eapply msubst_preserves_closed_rty_empty in HWF; eauto. repeat msubst_simp.
-      rewrite msubst_open_td in HWF; eauto. repeat msubst_simp.
-      all: simp_tac.
-    + assert (⌊ Γ ⌋* ⊢t tletapp v1 v2 e ⋮t ⌊ ρ ⌋) as HH.
-      { basic_typing_simp. auto_exists_L. intros. ospecialize * (HTe x _). my_set_solver.
-        basic_typing_simp. setoid_rewrite insert_union_singleton_r. rewrite ctx_erase_app in HTe. simpl in HTe.
-        unfold ctx_erase in *.
-        rewrite map_cons in HTe. simpl in HTe. my_simplify_map. eauto.
-        apply not_elem_of_dom_1. rewrite ctx_erase_dom. my_set_solver. }
-      eapply msubst_preserves_basic_typing_tm_empty in HH; eauto.
-      rewrite <- rty_erase_msubst_eq. simp_tac.
+    + eapply_eq msubst_preserves_closed_rty_empty; eauto.
+      repeat msubst_simp. rewrite msubst_open_td; simp_tac.
     + intros v_x Hv_x.
-      auto_pose_fv x.
-      remember (<[x:=v_x]> Γv) as Γv'.
-      ospecialize* (HDe x _ Γv'); eauto; subst. misc_solver.
-      { econstructor; eauto; simp_tac.
-        + rtyR_regular_simp; misc_solver. fine_solver.
-          closed_simp. rewrite closed_rty_arr in HTv1. simp_hyp HTv1.
-          econstructor; eauto.
-          auto_pose_fv y. ospecialize * (H6 y _). my_set_solver.
-          rewrite <- open_subst_same_rty with (x:=y).
-          apply subst_lc_rty. simpl. rewrite lc_rty_base_flip.
-          simpl in H6. rewrite lc_rty_base_td in H6. intuition.
-          auto. my_set_solver.
-          pose (open_fv_qualifier).
-          apply basic_typing_contains_fv_tm in H.
-          rewrite ctx_erase_dom in *.
-          my_set_solver.
-        + rewrite msubst_open_rty. repeat msubst_simp.
-          all: simp_tac.
-      }
+      auto_ctx_letbinding v_x.
+      { rewrite msubst_open_rty; simp_tac. }
+      ospecialize* HDe; eauto.
       rewrite msubst_insert_fresh_rty in HDe. repeat msubst_simp.
       rewrite open_rec_lc_rty.
       erewrite msubst_intro_tm; eauto.
@@ -400,13 +395,7 @@ Proof.
   - intros Γ v1 v2 e ρ ρx ρ2 A A' B L HWF HTv2 HDv2 HTv1 HDv1 HTe HDe Γv HΓv. admit.
   (* [TEOpApp] *)
   - intros Γ op v2 e ρ2 b1 ϕ1 A1 τ2 A2 L HTe HDe HWF HTv2 HDv2 HTop Γv HΓv.
-    restructure_typing HOrg. restructure_typing_regular.
-    assert (∅ ⊢t (m{Γv}t) (tletapp (value_of_op op) v2 e) ⋮t ⌊τ2⌋) as HTapp. {
-      repeat msubst_simp. rewrite msubst_value_of_op.
-      clear - HBTOrgMsubst.
-      sinvert HBTOrgMsubst. sinvert H5.
-      auto_exists_L. apply value_of_op_regular_basic_typing.
-    }
+    restructure_typing_regular.
     assert (lc v2) as Hlcv2. {
       apply value_typing_regular_basic_typing in HTv2.
       lc_solver_plus.
@@ -415,59 +404,23 @@ Proof.
     ospecialize* (Hsub _ HΓv).
     { assert (closed_rty ∅ ρ_op) as HClosedOp by simp_tac. simp_tac. }
     repeat msubst_simp.
-    rewrite msubst_open_td. repeat msubst_simp.
+    rewrite msubst_open_td by simp_tac. repeat msubst_simp.
     eapply denotation_application_tletopapp; eauto.
     all: try solve [simp_tac].
     + eapply msubst_preserves_closed_rty_empty in HWF; eauto. repeat msubst_simp.
-      rewrite msubst_open_td in HWF; eauto. repeat msubst_simp.
-      all: simp_tac.
-    + msubst_erase_simp. eauto.
+      rewrite msubst_open_td in HWF; eauto; simp_tac.
     + intros v_x Hv_x.
-      auto_pose_fv x.
-      assert (ok_ctx (Γ ++ [(x, {:b1|ϕ1} ^r^ v2)])) as Hok. {
-        econstructor.
-        rtyR_regular_simp; misc_solver.
-        fine_solver.
-        rewrite closed_rty_arr in H. simp_hyp H.
-        econstructor. apply body_rty_open_lc; eauto.
-        { auto_exists_L. intros. simpl. ospecialize * (H5 x0 _). my_set_solver. simpl in H5. rewrite lc_rty_base_td in H5. rewrite lc_rty_base_flip. intuition. }
-        simpl in H3. simpl. pose (open_fv_qualifier ϕ1 v2 1).
-        apply value_typing_regular_basic_typing in HTv2.
-        apply basic_typing_contains_fv_value in HTv2.
-        rewrite ctx_erase_dom in HTv2.
-        all: my_set_solver.
-      }
-      remember (<[x:=v_x]> Γv) as Γv'.
-      ospecialize* (HDe x _ Γv'); eauto; subst. misc_solver.
-      { econstructor; eauto; simp_tac.
-        + rewrite msubst_open_rty. repeat msubst_simp.
-          all: simp_tac.
-      }
+      auto_ctx_letbinding v_x.
+      { rewrite msubst_open_rty; simp_tac. }
+      ospecialize* HDe; eauto.
       rewrite msubst_insert_fresh_rty in HDe. repeat msubst_simp.
       rewrite open_rec_lc_rty.
       erewrite msubst_intro_tm; eauto.
       all: rtyR_regular_simp; misc_solver.
   (* [TMatchb] *)
   - intros Γ v e1 e2 ϕ τ L HWF HTv HDv HTe1 HDe1 HTe2 HDe2 Γv HΓv.
-    assert (is_tm_rty τ) as HisTmRty. {
-      auto_pose_fv x. ospecialize (HTe1 x _); eauto. my_set_solver.
-      apply value_tm_typing_regular_is_tm_rty in HTe1. eauto.
-    }
-    assert (∅ ⊢t (m{Γv}t) (tmatchb v e1 e2) ⋮t ⌊τ⌋) as HT. {
-      apply value_typing_regular_basic_typing in HTv.
-      eapply msubst_preserves_basic_typing_tm_empty; eauto.
-      auto_exists_L.
-      - auto_pose_fv x. ospecialize (HTe1 x _). my_set_solver.
-        apply tm_typing_regular_basic_typing in HTe1.
-        rewrite ctx_erase_app_r in HTe1.
-        eapply basic_typing_strengthen_tm; eauto.
-        all: my_set_solver.
-      - auto_pose_fv x. ospecialize (HTe2 x _). my_set_solver.
-        apply tm_typing_regular_basic_typing in HTe2.
-        rewrite ctx_erase_app_r in HTe2.
-        eapply basic_typing_strengthen_tm; eauto.
-        all: my_set_solver.
-    }.
+    restructure_typing_regular.
+    assert (is_tm_rty τ) as HisTmRty by (eapply value_tm_typing_regular_is_tm_rty; eauto).
     auto_pose_fv x. repeat specialize_with x.
     ospecialize* HDv; eauto.
     repeat msubst_simp.
@@ -494,15 +447,15 @@ Proof.
           (eauto using ctxRst_closed_env; simpl_fv; my_set_solver).
       rewrite msubst_insert_fresh_rty in HDe1 by
           (eauto using ctxRst_closed_env; simpl_fv; my_set_solver).
-      eapply rtyR_refine; eauto. is_tm_rty_tac. simp_tac.
-      sinvert HT. eapply tm_refine_tmatchb_true; eauto.
+      eapply rtyR_refine; eauto. misc_solver.
+      sinvert HBTOrgMsubst. eapply tm_refine_tmatchb_true; eauto.
     + ospecialize* HDe2; eauto.
       rewrite msubst_insert_fresh_tm in HDe2 by
           (eauto using ctxRst_closed_env; simpl_fv; my_set_solver).
       rewrite msubst_insert_fresh_rty in HDe2 by
           (eauto using ctxRst_closed_env; simpl_fv; my_set_solver).
-      eapply rtyR_refine; eauto. is_tm_rty_tac. simp_tac.
-      sinvert HT. eapply tm_refine_tmatchb_false; eauto.
+      eapply rtyR_refine; eauto. misc_solver.
+      sinvert HBTOrgMsubst. eapply tm_refine_tmatchb_false; eauto.
 Admitted.
 
 (** Fundamental theorem for value typing *)

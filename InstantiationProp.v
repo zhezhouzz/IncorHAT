@@ -392,6 +392,7 @@ Ltac msubst_simp :=
   | H': _ !! ?x = Some ?v |- context [ m{ _ }r (mk_eq_var _ ?x) ] => rewrite msubst_mk_eq_var with (v:=v)
   end; eauto using ctxRst_closed_env.
 
+
 (* Most lemmas here are generalization of the corresponding lemmas about
 single-substitution. *)
 
@@ -891,13 +892,6 @@ Qed.
 (*     simp_hyps. split; eauto. subst. *)
 (*     rewrite dom_insert. my_set_solver. *)
 (* Qed. *)
-
-Ltac misc_solver :=
-  repeat (match goal with
-          | [H: ok_ctx ?Γ |- ok_ctx (?Γ ++ [(?x, ?ρ)]) ] => econstructor; eauto
-          | [H: _ |- pure_rty {: _ | _} ] => simpl; eauto
-          | [H: _ |- _ ∉ _ ] => my_set_solver
-          end).
 
 Lemma is_tm_rty_msubst: forall τ Γv, closed_env Γv -> is_tm_rty (m{ Γv }r τ) <-> is_tm_rty τ.
 Proof.
