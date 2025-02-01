@@ -128,32 +128,38 @@ Inductive term_type_check : listctx rty -> tm -> rty -> Prop :=
     Γ ⊢ e ⋮t τ2 ->
     Γ ⊢ τ1 ⋮join τ2 ⋮= τ3 ->
     Γ ⊢ e ⋮t τ3
-| TLetEBase: forall Γ e1 e2 b1 ϕ1 A1 τ2 A2 (L: aset),
+| TLetE: forall Γ e1 e2 ρ1 A1 τ2 A2 (L: aset),
     (forall x, x ∉ L ->
-          (Γ ++ [(x, {: b1 | ϕ1})]) ⊢ (e2 ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
-    Γ ⊢WF (τ2!<[ (tdEx b1 ϕ1 A1) ○ A2 ]>) ->
-    Γ ⊢ e1 ⋮t ([: b1 | ϕ1]!<[ A1 ]>) ->
-    Γ ⊢ (tlete e1 e2) ⋮t (τ2!<[ (tdEx b1 ϕ1 A1) ○ A2 ]>)
-| TLetEArr: forall Γ e1 e2 ρ1 τ1 A1 τ2 A2 (L: aset),
+          (Γ ++ [(x, flip_rty ρ1)]) ⊢ (e2 ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
+    Γ ⊢WF (τ2!<[ (ex_phi_to_td ρ1 A1) ○ A2 ]>) ->
+    Γ ⊢ e1 ⋮t (ρ1!<[ A1 ]>) ->
+    Γ ⊢ (tlete e1 e2) ⋮t (τ2!<[ (ex_phi_to_td ρ1 A1) ○ A2 ]>)
+(* | TLetEBase: forall Γ e1 e2 b1 ϕ1 A1 τ2 A2 (L: aset), *)
+(*     (forall x, x ∉ L -> *)
+(*           (Γ ++ [(x, {: b1 | ϕ1})]) ⊢ (e2 ^t^ x) ⋮t (τ2 !<[ A2 ]>)) -> *)
+(*     Γ ⊢WF (τ2!<[ (tdEx b1 ϕ1 A1) ○ A2 ]>) -> *)
+(*     Γ ⊢ e1 ⋮t ([: b1 | ϕ1]!<[ A1 ]>) -> *)
+(*     Γ ⊢ (tlete e1 e2) ⋮t (τ2!<[ (tdEx b1 ϕ1 A1) ○ A2 ]>) *)
+(* | TLetEArr: forall Γ e1 e2 ρ1 τ1 A1 τ2 A2 (L: aset), *)
+(*     (forall x, x ∉ L -> *)
+(*           (Γ ++ [(x, ρ1 ⇨ τ1)]) ⊢ (e2 ^t^ x) ⋮t (τ2 !<[ A2 ]>)) -> *)
+(*     Γ ⊢WF (τ2!<[ A1 ○ A2 ]>) -> *)
+(*     Γ ⊢ e1 ⋮t ((ρ1 ⇨ τ1) !<[ A1 ]>) -> *)
+(*     Γ ⊢ (tlete e1 e2) ⋮t (τ2!<[ A1 ○ A2 ]>) *)
+| TApp: forall Γ (v1 v2: value) e ρ2 ρ1 A1 τ2 A2 (L: aset),
     (forall x, x ∉ L ->
-          (Γ ++ [(x, ρ1 ⇨ τ1)]) ⊢ (e2 ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
-    Γ ⊢WF (τ2!<[ A1 ○ A2 ]>) ->
-    Γ ⊢ e1 ⋮t ((ρ1 ⇨ τ1) !<[ A1 ]>) ->
-    Γ ⊢ (tlete e1 e2) ⋮t (τ2!<[ A1 ○ A2 ]>)
-| TAppBase: forall Γ (v1 v2: value) e ρ2 b1 ϕ1 A1 τ2 A2 (L: aset),
-    (forall x, x ∉ L ->
-          (Γ ++ [(x, {: b1 | ϕ1} ^r^ v2)]) ⊢ (e ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
-    Γ ⊢WF (τ2!<[ ((tdEx b1 ϕ1 A1) ^a^ v2) ○ A2 ]>) ->
+          (Γ ++ [(x, (flip_rty ρ1) ^r^ v2)]) ⊢ (e ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
+    Γ ⊢WF (τ2!<[ ((ex_phi_to_td ρ1 A1) ^a^ v2) ○ A2 ]>) ->
     Γ ⊢ v2 ⋮v ρ2 ->
-    Γ ⊢ v1 ⋮v (ρ2 ⇨ ([: b1 | ϕ1]!<[A1]>)) ->
-    Γ ⊢ (tletapp v1 v2 e) ⋮t (τ2!<[ ((tdEx b1 ϕ1 A1) ^a^ v2) ○ A2 ]>)
-| TAppArr: forall Γ (v1 v2: value) e ρ2 ρ11 ρ12 A1 τ2 A2 (L: aset),
-    (forall x, x ∉ L ->
-          (Γ ++ [(x, (ρ11 ⇨ ρ12) ^r^ v2)]) ⊢ (e ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
-    Γ ⊢WF (τ2!<[ (A1 ^a^ v2) ○ A2 ]>) ->
-    Γ ⊢ v2 ⋮v ρ2 ->
-    Γ ⊢ v1 ⋮v (ρ2 ⇨ ((ρ11 ⇨ ρ12)!<[A1]>)) ->
-    Γ ⊢ (tletapp v1 v2 e) ⋮t (τ2!<[ (A1 ^a^ v2) ○ A2 ]>)
+    Γ ⊢ v1 ⋮v (ρ2 ⇨ (ρ1!<[A1]>)) ->
+    Γ ⊢ (tletapp v1 v2 e) ⋮t (τ2!<[ ((ex_phi_to_td ρ1 A1) ^a^ v2) ○ A2 ]>)
+(* | TAppArr: forall Γ (v1 v2: value) e ρ2 ρ11 ρ12 A1 τ2 A2 (L: aset), *)
+(*     (forall x, x ∉ L -> *)
+(*           (Γ ++ [(x, (ρ11 ⇨ ρ12) ^r^ v2)]) ⊢ (e ^t^ x) ⋮t (τ2 !<[ A2 ]>)) -> *)
+(*     Γ ⊢WF (τ2!<[ (A1 ^a^ v2) ○ A2 ]>) -> *)
+(*     Γ ⊢ v2 ⋮v ρ2 -> *)
+(*     Γ ⊢ v1 ⋮v (ρ2 ⇨ ((ρ11 ⇨ ρ12)!<[A1]>)) -> *)
+(*     Γ ⊢ (tletapp v1 v2 e) ⋮t (τ2!<[ (A1 ^a^ v2) ○ A2 ]>) *)
 | TAppOp: forall Γ (op: effop) (v2: value) e ρ2 b1 ϕ1 A1 τ2 A2 (L: aset),
     (forall x, x ∉ L ->
           (Γ ++ [(x, {: b1 | ϕ1} ^r^ v2)]) ⊢ (e ^t^ x) ⋮t (τ2 !<[ A2 ]>)) ->
@@ -281,26 +287,14 @@ Proof.
     eauto.
   - hauto using subtyping_preserves_basic_typing.
   - hauto using subtyping_preserves_basic_typing.
-  - econstructor; eauto.
-    instantiate_atom_listctx.
-    rewrite ctx_erase_app_r in H0 by my_set_solver.
-    eauto.
-  - econstructor; eauto.
-    instantiate_atom_listctx.
-    rewrite ctx_erase_app_r in H0 by my_set_solver.
-    eauto.
-  - econstructor.
-    cbn in H0. eauto. eauto.
-    instantiate_atom_listctx.
-    rewrite ctx_erase_app_r in H0 by my_set_solver.
-    rewrite <- rty_erase_open_eq in H0.
-    eauto.
-  - econstructor.
-    cbn in H0. eauto. eauto.
-    instantiate_atom_listctx.
-    rewrite ctx_erase_app_r in H0 by my_set_solver.
-    rewrite <- rty_erase_open_eq in H0.
-    eauto.
+  - destruct ρ1; simpl in *.
+    all: econstructor; eauto;
+      instantiate_atom_listctx;
+      rewrite ctx_erase_app_r in H0 by my_set_solver; eauto.
+  - destruct ρ1; simpl in *.
+    all: auto_exists_L; intros; repeat specialize_with x;
+        rewrite ctx_erase_app_r in H0 by my_set_solver;
+        simpl in H0; repeat rewrite <- rty_erase_open_eq in H0; eauto.
   - apply effop_typing_preserves_basic_typing in H4. cbn in H4. sinvert H4.
     econstructor; eauto. qauto.
     instantiate_atom_listctx.
@@ -382,26 +376,6 @@ Proof.
       case_decide; try easy. simplify_eq.
       eexists. split; eauto. by simplify_map_eq.
 Qed.
-
-(* Lemma wf_rty_closed Γ ρ : *)
-(*   Γ ⊢WF ρ -> closed_rty (ctxdom Γ) ρ. *)
-(* Proof. *)
-(*   all: destruct 1; eauto; split; *)
-(*     let go := *)
-(*       repeat select (_ ⊢WF _) (fun H => apply wf_rty_closed in H; sinvert H); *)
-(*       repeat destruct select (_ ⊢WFa _); *)
-(*       eauto in *)
-(*     match goal with *)
-(*     | |- lc_rty _ => *)
-(*         repeat econstructor; try instantiate_atom_listctx; go *)
-(*     | |- _ => *)
-(*         simpl; auto_pose_fv x; repeat specialize_with x; go; *)
-(*         rewrite <- ?open_fv_rty' in *; *)
-(*         rewrite <- ?open_fv_rty' in *; *)
-(*         rewrite ?ctxdom_app_union in *; *)
-(*         my_set_solver *)
-(*     end. *)
-(* Qed. *)
 
 Lemma closed_td_comp L A B: closed_td L A○B <-> (closed_td L A /\ closed_td L B).
 Proof.

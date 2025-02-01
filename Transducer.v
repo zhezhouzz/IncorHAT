@@ -38,7 +38,8 @@ Inductive transducer : Type :=
 | tdComp (td1: transducer) (td2: transducer)
 | tdUnion (td1: transducer) (td2: transducer)
 (* | tdStar (td: transducer) *)
-| tdEx (b: base_ty) (ϕ: qualifier) (td: transducer).
+| tdEx (b: base_ty) (ϕ: qualifier) (td: transducer)
+| tdExArr (T1: ty) (T2: ty) (td: transducer).
 
 (* Notation "'⟨' op '|' ϕ '⟩/ϵ'" := (tdLitEps op ϕ) (at level 5, format "⟨ op | ϕ ⟩/ϵ", op constr, ϕ constr). *)
 Notation "'⟨' op '|' ϕ '⟩/id'" := (tdLitId op ϕ) (at level 5, format "⟨ op | ϕ ⟩/id", op constr, ϕ constr).
@@ -58,6 +59,7 @@ Fixpoint td_fv a : aset :=
   | tdLitOut _ ϕ1 _ arg ret => qualifier_fv ϕ1 ∪ fv_value arg ∪ fv_value ret
   | tdComp a1 a2 | tdUnion a1 a2 => td_fv a1 ∪ td_fv a2
   | tdEx _ ϕ a => qualifier_fv ϕ ∪ td_fv a
+  | tdExArr _ _ a => td_fv a
   end.
 
 #[global]
@@ -73,6 +75,7 @@ Fixpoint td_open (k: nat) (s: value) (a : transducer): transducer :=
   | tdComp a1 a2 => tdComp (td_open k s a1) (td_open k s a2)
   | tdUnion a1 a2 => tdUnion (td_open k s a1) (td_open k s a2)
   | tdEx b ϕ a => tdEx b (qualifier_open (S k) s ϕ) (td_open (S k) s a)
+  | tdExArr T1 T2 a => tdExArr T1 T2 (td_open (S k) s a)
   end.
 
 Notation "'{' k '~a>' s '}' e" := (td_open k s e) (at level 20, k constr).
@@ -87,6 +90,7 @@ Fixpoint td_subst (k: atom) (s: value) (a : transducer): transducer :=
   | tdComp a1 a2 => tdComp (td_subst k s a1) (td_subst k s a2)
   | tdUnion a1 a2 => tdUnion (td_subst k s a1) (td_subst k s a2)
   | tdEx b ϕ a => tdEx b (qualifier_subst k s ϕ) (td_subst k s a)
+  | tdExArr T1 T2 a => tdExArr T1 T2 (td_subst k s a)
   end.
 
 Notation "'{' x ':=' s '}a'" := (td_subst x s) (at level 20, format "{ x := s }a", x constr).
@@ -100,6 +104,7 @@ Inductive lc_td : transducer -> Prop :=
 | lc_tdComp : forall a1 a2, lc_td a1 -> lc_td a2 -> lc_td (tdComp a1 a2)
 | lc_tdUnion : forall a1 a2, lc_td a1 -> lc_td a2 -> lc_td (tdUnion a1 a2)
 | lc_tdEx : forall b ϕ a (L : aset), (forall x : atom, x ∉ L -> lc_td (a ^a^ x)) -> lc_phi1 ϕ -> lc_td (tdEx b ϕ a)
+| lc_tdExArr : forall T1 T2 a (L : aset), (forall x : atom, x ∉ L -> lc_td (a ^a^ x)) -> lc_td (tdExArr T1 T2 a)
 .
 
 Definition body_td A := exists (L: aset), ∀ x : atom, x ∉ L → lc_td (A ^a^ x).
@@ -117,6 +122,7 @@ Fixpoint td_measure (a: transducer) : nat :=
   | ⟨ _ | _ ⟩/id | ⟨ _ | _ ⟩/⟨ _ | _ | _ ⟩ => 1
   | a1 ○ a2 | tdUnion a1 a2 => 1 + td_measure a1 + td_measure a2
   | tdEx _ _ a => 1 + td_measure a
+  | tdExArr _ _ a => 1 + td_measure a
   end.
 
 Lemma td_measure_gt_0 ρ : td_measure ρ > 0.
@@ -142,4 +148,3 @@ Lemma subst_preserves_td_measure ρ: forall x t,
 Proof.
   induction ρ; simpl; eauto.
 Qed.
-

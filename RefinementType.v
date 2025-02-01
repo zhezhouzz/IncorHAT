@@ -68,7 +68,7 @@ Fixpoint fine_rty (τ: rty) :=
 
 Global Hint Constructors rty: core.
 
-Definition flap_rty (τ: rty) :=
+Definition flip_rty (τ: rty) :=
   match τ with
   | [: b | ϕ ] => {: b | ϕ }
   | {: b | ϕ } => [: b | ϕ ]
@@ -92,6 +92,13 @@ Definition ctx_erase (Γ: listctx rty) :=
   ⋃ ((List.map (fun e => {[e.1 := rty_erase e.2]}) Γ): list (amap ty)).
 
 Notation " '⌊' Γ '⌋*' " := (ctx_erase Γ) (at level 5, format "⌊ Γ ⌋*", Γ constr).
+
+Definition ex_phi_to_td (τ: rty) A :=
+  match τ with
+  | {: _ | _ } | _ !<[ _ ]> => A
+  | [: b | ϕ ] => tdEx b ϕ A
+  | ρ ⇨ τ => tdExArr ⌊ ρ ⌋ ⌊ τ ⌋ A
+  end.
 
 (** * Naming related definitions *)
 
@@ -138,19 +145,17 @@ Inductive lc_rty : rty -> Prop :=
     (forall x : atom, x ∉ L -> lc_rty (τ ^r^ x)) ->
     fine_rty (ρ ⇨ τ) -> lc_rty ρ ->
     lc_rty (ρ ⇨ τ)
-| lc_rtyTd: forall b ϕ a (L : aset),
+| lc_rtyTd: forall ρ a (L : aset),
     (forall x : atom, x ∉ L -> lc_td (a ^a^ x)) ->
-    fine_rty ([:b | ϕ]!<[a]>) -> lc_rty [:b | ϕ] ->
-    lc_rty ([:b | ϕ]!<[a]>)
-| lc_rtyTdArr: forall ρ τ a,
-    lc_td a ->
-    fine_rty ((ρ ⇨ τ)!<[a]>) -> lc_rty (ρ ⇨ τ) ->
-    lc_rty ((ρ ⇨ τ)!<[a]>).
+    fine_rty (ρ!<[a]>) -> lc_rty ρ ->
+    lc_rty (ρ!<[a]>).
 
 Lemma lc_rty_fine: forall τ, lc_rty τ -> fine_rty τ.
 Proof.
   induction 1; eauto.
 Qed.
+
+Definition body_rty τ := exists (L: aset), ∀ x : atom, x ∉ L → lc_rty (τ ^r^ x).
 
 (** Closed under free variable set *)
 
@@ -181,6 +186,16 @@ Proof.
   induction 1; eauto.
 Qed.
 
+Lemma pure_rty_open: forall τ k (v_x: value), pure_rty ({ k ~r> v_x} τ) <-> pure_rty τ.
+Proof.
+  split; induction τ; simpl; intros; inversion H; subst; eauto.
+Qed.
+
+Lemma pure_rty_subst: forall τ x (v_x: value), pure_rty ({ x := v_x}r τ) <-> pure_rty τ.
+Proof.
+  split; induction τ; simpl; intros; inversion H; subst; eauto.
+Qed.
+
 Lemma tdable_rty_open: forall τ k (v_x: value), tdable_rty ({ k ~r> v_x} τ) <-> tdable_rty τ.
 Proof.
   split; induction τ; simpl; intros; inversion H; subst; eauto.
@@ -200,6 +215,54 @@ Lemma is_tm_rty_subst: forall τ x (v_x: value), is_tm_rty ({ x := v_x}r τ) <->
 Proof.
   split; induction τ; simpl; intros; inversion H; subst; eauto.
 Qed.
+
+Ltac fine_rty_aux_simp_aux :=
+  match goal with
+  | [H: context [ tdable_rty ({_ ~r> _} ?τ) ] |- _ ] => setoid_rewrite tdable_rty_open in H
+  | [H: context [ tdable_rty ({_ := _}r ?τ) ] |- _ ] => setoid_rewrite tdable_rty_subst in H
+  | [H: _ |- context [ tdable_rty ({_ ~r> _} ?τ) ] ] => setoid_rewrite tdable_rty_open
+  | [H: _ |- context [ tdable_rty ({_ := _}r ?τ) ] ] => setoid_rewrite tdable_rty_subst
+  | [H: context [ pure_rty ({_ ~r> _} ?τ) ] |- _ ] => setoid_rewrite pure_rty_open in H
+  | [H: context [ pure_rty ({_ := _}r ?τ) ] |- _ ] => setoid_rewrite pure_rty_subst in H
+  | [H: _ |- context [ pure_rty ({_ ~r> _} ?τ) ] ] => setoid_rewrite pure_rty_open
+  | [H: _ |- context [ pure_rty ({_ := _}r ?τ) ] ] => setoid_rewrite pure_rty_subst
+  | [H: context [ is_tm_rty ({_ ~r> _} ?τ) ] |- _ ] => setoid_rewrite is_tm_rty_open in H
+  | [H: context [ is_tm_rty ({_ := _}r ?τ) ] |- _ ] => setoid_rewrite is_tm_rty_subst in H
+  | [H: _ |- context [ is_tm_rty ({_ ~r> _} ?τ) ] ] => setoid_rewrite is_tm_rty_open
+  | [H: _ |- context [ is_tm_rty ({_ := _}r ?τ) ] ] => setoid_rewrite is_tm_rty_subst
+  end.
+
+Lemma fine_rty_open τ: forall k (v_x: value), fine_rty ({ k ~r> v_x} τ) <-> fine_rty τ.
+Proof.
+  induction τ; split; simpl; intros; sinvert H; subst; intuition; repeat fine_rty_aux_simp_aux; eauto.
+  - rewrite <- IHτ1; eauto.
+  - rewrite <- IHτ2; eauto.
+  - rewrite IHτ1; eauto.
+  - rewrite IHτ2; eauto.
+  - rewrite <- IHτ; eauto.
+  - rewrite IHτ; eauto.
+Qed.
+
+Lemma fine_rty_subst: forall τ x (v_x: value), fine_rty ({ x := v_x}r τ) <-> fine_rty τ.
+Proof.
+  induction τ; split; simpl; intros; sinvert H; subst; intuition; repeat fine_rty_aux_simp_aux; eauto.
+  - rewrite <- IHτ1; eauto.
+  - rewrite <- IHτ2; eauto.
+  - rewrite IHτ1; eauto.
+  - rewrite IHτ2; eauto.
+  - rewrite <- IHτ; eauto.
+  - rewrite IHτ; eauto.
+Qed.
+
+Ltac fine_rty_simp_aux :=
+  simpl in *;
+  match goal with
+  | [H: context [ fine_rty ({_ ~r> _} ?τ) ] |- _ ] => setoid_rewrite fine_rty_open in H
+  | [H: context [ fine_rty ({_ := _}r ?τ) ] |- _ ] => setoid_rewrite fine_rty_subst in H
+  | [H: _ |- context [ fine_rty ({_ ~r> _} ?τ) ] ] => setoid_rewrite fine_rty_open
+  | [H: _ |- context [ fine_rty ({_ := _}r ?τ) ] ] => setoid_rewrite fine_rty_subst
+  | _ => fine_rty_aux_simp_aux
+  end.
 
 Lemma is_tm_rty_retrty: forall τ1 τ2 L, closed_rty L (τ1⇨τ2) -> is_tm_rty τ2.
 Proof.
@@ -236,40 +299,42 @@ Proof.
   rewrite lc_rty_base_flip in *; eauto.
 Qed.
 
-Lemma lc_rty_base_td: forall b ϕ A, lc_rty ([:b|ϕ]!<[A]>) <-> lc_rty [:b|ϕ] /\ body_td A.
+Lemma lc_rty_td: forall ρ A, lc_rty (ρ!<[A]>) <-> fine_rty (ρ!<[A]>) /\ lc_rty ρ /\ body_td A.
 Proof.
   split; intros; sinvert H.
-  - split; eauto. exists L. eauto.
+  - intuition. auto_exists_L.
   - unfold body_td in H1. simp_hyps.
-    auto_exists_L. simpl; eauto.
+    auto_exists_L.
 Qed.
 
-Lemma lc_rty_arr_td: forall ρ τ A, lc_rty ((ρ ⇨ τ)!<[A]>) <-> lc_rty (ρ ⇨ τ) /\ lc_td A.
+Lemma lc_rty_arr: forall ρ τ, lc_rty (ρ ⇨ τ) <-> fine_rty (ρ ⇨ τ) /\ lc_rty ρ /\ body_rty τ.
 Proof.
   split; intros; sinvert H.
-  - split; eauto.
-  - econstructor; eauto. sinvert H0. simpl; eauto.
+  - intuition. auto_exists_L.
+  - unfold body_rty in H1. simp_hyps. auto_exists_L; eauto.
 Qed.
 
-Lemma closed_rty_base_td: forall L b ϕ A, closed_rty L ([:b|ϕ]!<[ A ]>) <-> closed_rty L [:b|ϕ] /\ body_td A /\ td_fv A ⊆ L.
+Lemma closed_rty_td: forall L ρ A, closed_rty L (ρ!<[ A ]>) <->
+                                fine_rty (ρ!<[A]>) /\ closed_rty L ρ /\ body_td A /\ td_fv A ⊆ L.
 Proof.
   split; intros; sinvert H.
-  - intuition.
-    + sinvert H0; eauto. econstructor; eauto. my_set_solver.
-    + rewrite lc_rty_base_td in H0. intuition.
-    + rewrite lc_rty_base_td in H0. my_set_solver.
-  - sinvert H0. econstructor; eauto.
-    + rewrite lc_rty_base_td. intuition.
+  - rewrite lc_rty_td in H0. intuition.
+    + econstructor; eauto. my_set_solver.
+    + my_set_solver.
+  - simp_hyps. sinvert H. econstructor; eauto.
+    + rewrite lc_rty_td. intuition.
     + my_set_solver.
 Qed.
 
-Lemma closed_rty_arr_td: forall L ρ τ A, closed_rty L ((ρ ⇨ τ)!<[ A ]>) <-> closed_rty L (ρ ⇨ τ) /\ closed_td L A.
+Lemma closed_rty_arr:
+  ∀ (L : aset) (ρ τ : rty),
+    closed_rty L (ρ⇨τ) ↔ (fine_rty (ρ⇨τ)) /\ closed_rty L ρ ∧ body_rty τ /\ (rty_fv τ ⊆ L).
 Proof.
-  split; intros; sinvert H.
-  - sinvert H0; split; eauto.
+  split; intros.
+  - sinvert H. rewrite lc_rty_arr in H0. intuition.
     + econstructor; eauto. my_set_solver.
-    + econstructor; eauto. my_set_solver.
-  - sinvert H0. sinvert H1. econstructor; eauto.
-    + rewrite lc_rty_arr_td. intuition.
+    + my_set_solver.
+  - simp_hyps. sinvert H1. econstructor; eauto.
+    + rewrite lc_rty_arr. intuition.
     + my_set_solver.
 Qed.

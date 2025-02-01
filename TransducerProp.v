@@ -123,8 +123,8 @@ Proof.
   pose subst_lc_phi2.
   pose subst_lc_value.
   induction 1; intros Hu; eauto using lc_td.
-  - simpl. auto_exists_L. intros y Hy. specialize_with y.
-    rewrite subst_open_var_td in *; eauto. set_solver.
+  all: simpl; auto_exists_L; intros y Hy; specialize_with y;
+       rewrite subst_open_var_td in *; eauto; set_solver.
 Qed.
 
 Lemma fv_of_subst_td_closed:
@@ -188,6 +188,9 @@ Proof.
   - auto_exists_L. intros x0 Hx0. repeat specialize_with x0.
     auto_apply; eauto.
     rewrite <- subst_open_var_td by my_set_solver. eauto.
+  - auto_exists_L. intros x0 Hx0. repeat specialize_with x0.
+    auto_apply; eauto.
+    rewrite <- subst_open_var_td by my_set_solver. eauto.
 Qed.
 
 Lemma open_td_idemp: forall u (v: value) (a: transducer) (k: nat),
@@ -240,8 +243,6 @@ Proof.
   rewrite Vector.Forall_forall in H4. eauto.
 Qed.
 
-Check Vector.In.
-
 (* NOTE: Very very annoying, a reverse version of map_ext, using classical logic *)
 Lemma vector_map_ext_in' {A B: Type} (f g: A -> B) {n: nat} (vec: vec A n):
   vmap f vec = vmap g vec -> (forall x, @Vector.In A x n vec -> f x = g x).
@@ -254,8 +255,6 @@ Proof.
     apply Classical_Prop.EqdepTheory.inj_pair2 in H5. subst.
     eapply IHvec in H3; eauto.
 Qed.
-
-Check fact1_value.
 
 Lemma fact1_value_twice: forall (u v1 v2: value) (e: value) i j1 j2,
     i <> j1 -> i <> j2 -> j1 <> j2 ->
@@ -345,6 +344,10 @@ Proof.
     rewrite IHm; eauto. rewrite <- open_preserves_td_measure; eauto. apply H0. my_set_solver.
   - auto_pose_fv x. apply fact1_td with (j := 0) (v := x); eauto.
     rewrite IHm; eauto. rewrite <- open_preserves_td_measure; eauto. lia. apply H0. my_set_solver.
+  - auto_pose_fv x. apply fact1_td with (j := 0) (v := x); eauto.
+    rewrite IHm; eauto. rewrite <- open_preserves_td_measure; eauto. apply H0. my_set_solver.
+  - auto_pose_fv x. apply fact1_td with (j := 0) (v := x); eauto.
+    rewrite IHm; eauto. rewrite <- open_preserves_td_measure; eauto. lia. apply H0. my_set_solver.
 Qed.
 
 Lemma open_rec_lc_td: ∀ (u : value) A (k : nat), lc_td A -> {k ~a> u} A = A.
@@ -356,6 +359,8 @@ Proof.
     try (rewrite open_rec_lc_value; eauto).
   - auto_pose_fv x. apply fact1_td with (j := 0) (v := x); eauto.
     rewrite H0; eauto. my_set_solver.
+  - auto_pose_fv x. apply fact1_td with (j := 0) (v := x); eauto.
+    rewrite H0; eauto. my_set_solver.
 Qed.
 
 Lemma lc_tdEx_destruct: forall b ϕ A, lc_td (tdEx b ϕ A) <-> lc_phi1 ϕ /\ body_td A.
@@ -363,6 +368,13 @@ Proof.
   split; intros.
   - sinvert H. intuition. eexists L. eauto.
   - destruct H. destruct H0. auto_exists_L.
+Qed.
+
+Lemma lc_tdExArr_destruct: forall T1 T2 A, lc_td (tdExArr T1 T2 A) <-> body_td A.
+Proof.
+  split; intros.
+  - sinvert H. intuition. eexists L. eauto.
+  - destruct H. auto_exists_L.
 Qed.
 
 Lemma lc_tdComp_destruct: forall A B, lc_td (tdComp A B) <-> lc_td A /\ lc_td B.

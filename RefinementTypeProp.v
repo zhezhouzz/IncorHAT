@@ -206,7 +206,7 @@ Proof.
 Qed.
 
 Ltac solve_fine_rty :=
-  simpl;
+  repeat fine_rty_simp_aux; eauto;
   match goal with
   | [ _ : _ |- context [rty_subst _ _ ?ρ] ] =>
       destruct ρ; simpl in *; eauto; intuition
@@ -234,8 +234,7 @@ Proof.
     simpl. intuition. rty_simp.
   - auto_exists_L; intros. rewrite <- subst_open_var_td; eauto.
     auto_apply; eauto. my_set_solver. my_set_solver.
-  - auto_exists_L; intros.
-    simpl. intuition. rty_simp.
+    solve_fine_rty.
 Qed.
 
 Lemma fv_of_subst_rty_closed:
@@ -290,14 +289,9 @@ Proof.
     apply H1.
     rewrite <- subst_open_var_rty; eauto. my_set_solver.
   - intros τ1 **; destruct τ1; inversion Heqr; simpl; subst.
-    destruct τ1; inversion Heqr; simpl; subst.
-    sinvert H4. sinvert H2.
+    rewrite lc_rty_td. repeat fine_rty_simp_aux. intuition.
     auto_exists_L. intros. specialize_with x0.
     rewrite <- subst_open_var_td in * by (eauto; my_set_solver); eauto.
-  - intros τ1 **; destruct τ1; inversion Heqr; simpl; subst.
-    destruct τ1; inversion Heqr; simpl; subst.
-    auto_exists_L.
-    eapply subst_fine_rty_r. simpl in *. intuition; eauto.
 Qed.
 
 Lemma open_rty_idemp: forall u (v: value)  (τ: rty) (k: nat),
@@ -338,4 +332,39 @@ Proof.
     rewrite H0; eauto. my_set_solver.
   - auto_pose_fv x. apply fact1_td with (j := 0) (v := x); eauto.
     apply open_rec_lc_td; my_set_solver.
+Qed.
+
+Lemma body_rty_open_lc: forall (v: value) τ,
+    lc v -> (body_rty τ) -> lc_rty (τ ^r^ v).
+Proof.
+  unfold body_rty. intros. simp_hyps.
+  auto_pose_fv x.
+  erewrite <- open_subst_same_rty. instantiate (1:= x).
+  apply subst_lc_rty; eauto.
+  apply H0.
+  all: my_set_solver.
+Qed.
+
+Lemma ex_phi_to_td_open τ A k v:
+  tdable_rty τ -> {k ~a> v} (ex_phi_to_td τ A) = (ex_phi_to_td ({k ~r> v} τ) ({S k ~a> v} A)).
+Proof.
+  destruct τ; simpl; intros; intuition.
+  + repeat rewrite <- rty_erase_open_eq; eauto.
+Qed.
+
+Lemma ex_phi_to_td_subst τ A x v:
+  tdable_rty τ -> {x:=v}a (ex_phi_to_td τ A) = (ex_phi_to_td ({x:=v}r τ) ({x:=v}a A)).
+Proof.
+  destruct τ; simpl; intros; intuition.
+  + repeat rewrite <- rty_erase_subst_eq; eauto.
+Qed.
+
+Lemma flip_rty_open τ k v: {k ~r> v} (flip_rty τ) = flip_rty ({k ~r> v} τ).
+Proof.
+  destruct τ; simpl; intros; intuition.
+Qed.
+
+Lemma flip_rty_subst τ x v: {x:=v}r (flip_rty τ) = flip_rty ({x:=v}r τ).
+Proof.
+  destruct τ; simpl; intros; intuition.
 Qed.

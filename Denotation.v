@@ -55,6 +55,7 @@ Fixpoint langA (gas: nat) (a: transducer) (α: list evop) (β: list evop) : Prop
          | tdUnion a1 a2 => langA gas' a1 α β ∨ langA gas' a2 α β
          | tdEx b ϕ a =>
              exists c, ∅ ⊢t c ⋮v b /\ denote_qualifier ({0 ~q> c} ϕ) /\ langA gas' (a ^a^ c) α β
+         | tdExArr T1 T2 a => langA gas' a α β
          end)
   end.
 
@@ -101,41 +102,10 @@ Fixpoint rtyR (gas: nat) (ρ: rty) (e: tm) : Prop :=
                   a⟦ (a ^a^ v) ⟧ α β -> rtyR gas' {: b | ϕ} v -> α ⊧ e ↪*{β} v
             | ρx ⇨ τ =>
                 forall α β, a⟦ a ⟧ α β ->
-                       exists (v: value), rtyR gas' (ρx ⇨ τ) v /\ α ⊧ e ↪*{β} v
+                            exists (v: value), rtyR gas' (ρx ⇨ τ) v /\ α ⊧ e ↪*{β} v
             end
         end
   end.
-
-
-        (*     match ρ with *)
-        (*     | {: _ | _} => False *)
-        (*     | [: b | ϕ] => *)
-        (*         forall (v: value) α β, *)
-        (*           denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β -> *)
-        (*           α ⊧ e ↪*{β} v *)
-        (*     | ρx ⇨ τ => *)
-        (*         forall (v: value) α β, *)
-        (*           denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β -> *)
-        (*           α ⊧ e ↪*{β} v *)
-
-        (*         exists (v: value), (forall α, multistep α e α v) /\ *)
-        (*                         (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x)) *)
-
-        (*     forall (e': tm) α β, *)
-        (*       denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β -> *)
-        (*       α ⊧ e ↪*{β} v *)
-        (* | [: b | ϕ]!<[ a ]> => *)
-        (*     forall (v: value) α β, *)
-        (*       denote_qualifier (ϕ ^q^ v) -> a⟦ (a ^a^ v) ⟧ α β -> *)
-        (*       α ⊧ e ↪*{β} v *)
-        (* | ρx ⇨ τ => *)
-        (*     exists (v: value), (forall α, multistep α e α v) /\ *)
-        (*                     (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x)) *)
-        (* | ρx !⇨ τ !<[ a ]> => *)
-        (*     forall (α β: list evop), *)
-        (*       a⟦ a ⟧ α β -> *)
-        (*       exists (v: value), α ⊧ e ↪*{β} v /\ *)
-        (*         (forall (v_x: value), rtyR gas' ρx v_x -> rtyR gas' (τ ^r^ v_x) (mk_app_e_v e v_x)) *)
 
 Notation "'⟦' τ '⟧' " := (rtyR (rty_measure τ) τ) (at level 20, format "⟦ τ ⟧", τ constr).
 
@@ -392,6 +362,8 @@ Proof.
   - right. rewrite IHk; try lia_tac.
   - left. rewrite IHk; try lia_tac.
   - right. rewrite IHk; try lia_tac.
+  - rewrite IHk; try lia_tac.
+  - rewrite IHk; try lia_tac.
 Qed.
 
 Lemma langA_measure_irrelevant: forall ρ m n α β,
@@ -407,6 +379,11 @@ Lemma langA_measure_irrelevant' n ρ α β:
   langA n ρ α β <-> a⟦ ρ ⟧ α β.
 Proof.
   intros. rewrite langA_measure_irrelevant; eauto.
+Qed.
+
+Lemma rty_measure_flip: forall ρ, rty_measure (flip_rty ρ) = rty_measure ρ.
+Proof.
+  destruct ρ; eauto.
 Qed.
 
 Lemma rtyR_measure_irrelevant_aux: forall k ρ m n e,
@@ -465,12 +442,6 @@ Ltac rewrite_measure_irrelevant :=
       setoid_rewrite langA_measure_irrelevant'; [ | t .. ]
   end.
 
-(* Ltac lc_basic_typing_plus_aux := *)
-(*   match goal with *)
-(*   | [H: lc (tlete _ _) |- lc _] => rewrite lete_lc_body in H; simp_hyps *)
-(*   | [H: lc (tlete _ _) |- body _] => rewrite lete_lc_body in H; simp_hyps *)
-(*   end. *)
-
 Ltac lc_solver_plus :=
   repeat (lc_solver_simp_aux || lc_basic_typing_simp_aux); eauto;
   (repeat lc_solver_plus_aux); eauto.
@@ -517,4 +488,28 @@ Proof.
     simp_hyps.
     rewrite reduction_mk_app_e_v_f by auto.
     repeat eexists; eauto.
+Qed.
+
+Lemma tm_refine_tmatchb_true: forall e1 e2 T,
+    ∅ ⊢t e1 ⋮t T ->
+    ∅ ⊢t e2 ⋮t T ->
+    tm_refine e1 (tmatchb true e1 e2).
+Proof.
+  split.
+  - exists T. intuition.
+  - intros.
+    pose basic_typing_regular_tm.
+    repeat (econstructor; eauto).
+Qed.
+
+Lemma tm_refine_tmatchb_false: forall e1 e2 T,
+    ∅ ⊢t e1 ⋮t T ->
+    ∅ ⊢t e2 ⋮t T ->
+    tm_refine e2 (tmatchb false e1 e2).
+Proof.
+  split.
+  - exists T. intuition.
+  - intros.
+    pose basic_typing_regular_tm.
+    repeat (econstructor; eauto).
 Qed.

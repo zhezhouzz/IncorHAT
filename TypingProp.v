@@ -49,14 +49,10 @@ Ltac closed_simp :=
 
 Ltac lc_simpl :=
   repeat match goal with
-    | [H: closed_rty _ ([: _ | _ ]!<[ _ ]>) |- lc_td _ ] =>
-        rewrite closed_rty_base_td in H; simp_hyp H
-    | [H: closed_rty _ ((_ ⇨ _ )!<[ _ ]>) |- lc_td _ ] =>
-        rewrite closed_rty_arr_td in H; simp_hyp H
-    | [H: closed_rty _ ([: _ | _ ]!<[ _ ]>) |- lc_rty _ ] =>
-        rewrite closed_rty_base_td in H; simp_hyp H
-    | [H: closed_rty _ ((_ ⇨ _ )!<[ _ ]>) |- lc_rty _ ] =>
-        rewrite closed_rty_arr_td in H; simp_hyp H
+    | [H: closed_rty _ (_!<[ _ ]>) |- lc_td _ ] =>
+        rewrite closed_rty_td in H; simp_hyp H
+    | [H: closed_rty _ (_!<[ _ ]>) |- lc_rty _ ] =>
+        rewrite closed_rty_td in H; simp_hyp H
     | [H: lc_rty ([: _ | _ ]) |- lc_td _ ] =>
         rewrite lc_rty_under_base_q in H
     | [H: lc_rty ({: _ | _ }) |- lc_td _ ] =>
@@ -104,89 +100,76 @@ Proof.
   simpl. econstructor. econstructor. simplify_map_eq. reflexivity.
 Qed.
 
-Lemma denotation_application_tlete_arr ρ1 τ1 A ρ B e_x e:
-  closed_rty ∅ (ρ !<[A ○ B ]>) ->
-  ∅ ⊢t tlete e_x e ⋮t ⌊ρ⌋ ->
-  ⟦ (ρ1 ⇨ τ1)!<[A]> ⟧ e_x ->
-  (forall (v_x : value), ⟦ (ρ1 ⇨ τ1) ⟧ v_x -> ⟦ρ !<[ B ]>⟧ (e ^t^ v_x)) ->
-  (⟦ ρ !<[ A ○ B ]> ⟧) (tlete e_x e).
+Lemma td_open_comp A B k v: {k ~a> v} (A ○ B) = (({k ~a> v} A) ○ ({k ~a> v} B)).
 Proof.
-  intros Hclosed2 HTe He_x He.
-  assert (closed_rty ∅ ((ρ1 ⇨ τ1)!<[A]>)) as Hclosed1 by solve [simpl in *; intuition].
-  split; [| split]; eauto.
-  finerty_destruct ρ.
-  - intros α β v H.
-    assert (forall v, (A ○B ^a^ v) = A ○ (B ^a^ v)) as Htmp.
-    { assert (forall v, A ^a^ v = A) as Htmp.
-      { intros. rewrite open_rec_lc_td; eauto. lc_simpl. eauto. }
-      setoid_rewrite <- Htmp at 2. auto. }
-    setoid_rewrite Htmp in H; clear Htmp.
-    rewrite langA_comp_spec in H. destruct H as (α' & Hα & Hβ).
-    destruct He_x as (HTe_x & Hclosed3 & He_x).
-    ospecialize (He_x α α' _); eauto. destruct He_x as (v_x & HMeasure2 & Hv_x).
-    ospecialize (He v_x _); eauto.
-    destruct He as (HTe' & Hclosed4 & He).
-    intros Hv.
-    specialize (He α' β v Hβ Hv).
-    eapply reduction_tlete'; eauto. lc_solver_plus.
-  - intros α β H.
-    destruct He_x as (HTe_x & Hclosed3 & He_x).
-    rewrite langA_comp_spec in H. destruct H as (α' & Hα & Hβ).
-    ospecialize * He_x; eauto.
-    destruct He_x as (v_x & Hmeasure2 & Hv_x).
-    ospecialize * He; eauto.
-    destruct He as (HTe' & Hclosed4 & He).
-    specialize (He α' β Hβ). destruct He as (v & Hv & He).
-    exists v. split; auto.
-    eapply reduction_tlete'; eauto. lc_solver_plus.
+  eauto.
 Qed.
 
-Lemma denotation_application_tlete_base b ϕ A ρ B e_x e:
-  (* (exists v_x: value, ⟦ {:b|ϕ} ⟧ v_x) -> *)
-  closed_rty ∅ (ρ !<[ (tdEx b ϕ A) ○ B ]>) ->
+Lemma denotation_tdExArr_same: forall T1 T2 A α β, a⟦tdExArr T1 T2 A⟧ α β <-> a⟦A⟧ α β.
+Proof.
+  split; intros.
+  - sinvert H. intuition.
+  - econstructor; intuition.
+    + apply langA_closed in H. sinvert H. econstructor.
+      * auto_exists_L. intros. rewrite open_rec_lc_td; eauto.
+      * my_set_solver.
+    + apply langA_valid_trace in H; intuition.
+    + apply langA_valid_trace in H; intuition.
+Qed.
+
+Lemma denotation_application_tlete ρ_x A ρ B e_x e:
+  closed_rty ∅ (ρ !<[ (ex_phi_to_td ρ_x A) ○ B ]>) ->
   ∅ ⊢t tlete e_x e ⋮t ⌊ρ⌋ ->
-  ⟦ [:b|ϕ]!<[A]> ⟧ e_x ->
-  (forall (v_x : value), ⟦ {:b|ϕ} ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
-  (⟦ ρ !<[ (tdEx b ϕ A) ○ B ]> ⟧) (tlete e_x e).
+  ⟦ ρ_x!<[A]> ⟧ e_x ->
+  (forall (v_x : value), ⟦ flip_rty ρ_x ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
+  (⟦ ρ !<[ (ex_phi_to_td ρ_x A) ○ B ]> ⟧) (tlete e_x e).
 Proof.
   intros Hclosed2 HTe He_x He.
-  assert (closed_rty ∅ ([:b|ϕ]!<[A]>)) as Hclosed1 by solve [simpl in *; intuition].
+  assert (closed_rty ∅ (ρ_x!<[A]>)) as Hclosed1 by solve [simpl in *; intuition].
   split; [| split]; eauto.
   finerty_destruct ρ.
-  - intros α β v H.
-    assert (forall v, ((tdEx b ϕ A)○B ^a^ v) = (tdEx b ϕ A) ○ (B ^a^ v)) as Htmp.
-    { assert (forall v, (tdEx b ϕ A) ^a^ v = (tdEx b ϕ A)) as Htmp.
-      { intros. rewrite open_rec_lc_td; eauto. lc_simpl.
-        rewrite lc_tdEx_destruct; intuition. }
-      setoid_rewrite <- Htmp at 2. auto. }
-    setoid_rewrite Htmp in H; clear Htmp.
+  - intros α β v H HDv. simpl td_open in H.
     rewrite langA_comp_spec in H. destruct H as (α' & Hα & Hβ).
-    rewrite langA_ex_spec in Hα. destruct Hα as (v_x & Hv_x & Hα).
-    specialize (He v_x Hv_x).
-    destruct He_x as (HTe_x & Hclosed3 & He_x).
-    specialize (He_x α α' v_x Hα Hv_x).
-    assert (([:b0|ϕ0]!<[B]>) ^r^ v_x = ([:b0|ϕ0]!<[B]>)) as Htmp.
-    { rewrite open_rec_lc_rty; eauto. lc_simpl.
-      rewrite lc_rty_base_td. intuition; lc_simpl; eauto. }
-    rewrite Htmp in He. clear Htmp.
-    destruct He as (HTe' & Hclosed4 & He).
-    intros Hv.
-    specialize (He α' β v Hβ Hv).
-    eapply reduction_tlete'; eauto. lc_solver_plus.
+    finerty_destruct ρ_x; simpl flip_rty in *; simpl ex_phi_to_td in *;
+      rewrite open_rec_lc_td in Hα by solve [lc_simpl; sinvert H0; auto_exists_L].
+    + rewrite langA_ex_spec in Hα. destruct Hα as (v_x & Hv_x & Hα).
+      specialize (He v_x Hv_x).
+      destruct He_x as (HTe_x & Hclosed3 & He_x).
+      specialize (He_x α α' v_x Hα Hv_x).
+      rewrite open_rec_lc_rty in He by (lc_simpl; rewrite lc_rty_td; intuition; lc_simpl; eauto).
+      destruct He as (HTe' & Hclosed4 & He).
+      specialize (He α' β v Hβ HDv).
+      eapply reduction_tlete'; eauto. lc_solver_plus.
+    + rewrite denotation_tdExArr_same in Hα.
+      destruct He_x as (HTe_x & Hclosed3 & He_x).
+      ospecialize (He_x α α' _); eauto. destruct He_x as (v_x & HMeasure2 & Hv_x).
+      ospecialize (He v_x _); eauto.
+      rewrite open_rec_lc_rty in He by (lc_simpl; rewrite lc_rty_td; intuition; lc_simpl; eauto).
+      destruct He as (HTe' & Hclosed4 & He).
+      ospecialize (He α' β v _ _); eauto.
+      eapply reduction_tlete'; eauto. lc_solver_plus.
   - intros α β H.
-    rewrite langA_comp_spec in H. destruct H as (α' & Hα & Hβ).
-    rewrite langA_ex_spec in Hα. destruct Hα as (v_x & Hv_x & Hα).
-    specialize (He v_x Hv_x).
-    destruct He_x as (HTe_x & Hclosed3 & He_x).
-    specialize (He_x α α' v_x Hα Hv_x).
-    assert ((ρ1⇨ρ2)!<[B]> ^r^ v_x = ((ρ1⇨ρ2)!<[B]>)) as Htmp.
-    { rewrite open_rec_lc_rty; eauto. lc_simpl.
-      rewrite lc_rty_arr_td. intuition; lc_simpl; eauto. }
-    rewrite Htmp in He. clear Htmp.
-    destruct He as (HTe' & Hclosed4 & He).
-    specialize (He α' β Hβ). destruct He as (v & Hv & He).
-    exists v. split; auto.
-    eapply reduction_tlete'; eauto. lc_solver_plus.
+    finerty_destruct ρ_x; simpl flip_rty in *; simpl ex_phi_to_td in *;
+      rewrite langA_comp_spec in H; destruct H as (α' & Hα & Hβ).
+    + rewrite langA_ex_spec in Hα. destruct Hα as (v_x & Hv_x & Hα).
+      specialize (He v_x Hv_x).
+      destruct He_x as (HTe_x & Hclosed3 & He_x).
+      ospecialize (He_x α α' v_x _ _); eauto.
+      rewrite open_rec_lc_rty in He by (lc_simpl; rewrite lc_rty_td; intuition; lc_simpl; eauto).
+      destruct He as (HTe' & Hclosed4 & He).
+      specialize (He α' β Hβ). destruct He as (v & Hv & He).
+      exists v. split; auto.
+      eapply reduction_tlete'; eauto. lc_solver_plus.
+    + rewrite denotation_tdExArr_same in Hα.
+      destruct He_x as (HTe_x & Hclosed3 & He_x).
+      ospecialize * He_x; eauto.
+      destruct He_x as (v_x & Hmeasure2 & Hv_x).
+      ospecialize * He; eauto.
+      rewrite open_rec_lc_rty in He by (lc_simpl; rewrite lc_rty_td; intuition; lc_simpl; eauto).
+      destruct He as (HTe' & Hclosed4 & He).
+      specialize (He α' β Hβ). destruct He as (v & Hv & He).
+      exists v. split; auto.
+      eapply reduction_tlete'; eauto. lc_solver_plus.
 Qed.
 
 Ltac is_tm_rty_tac :=
@@ -221,16 +204,16 @@ Ltac simp_for_basic_typing :=
       apply rtyR_typed_closed in H ; simp_hyp H; eauto
      end); unique_basic_type.
 
-Lemma denotation_application_tletapp_base ρ1 b2 ϕ2 A ρ B (v1 v2: value) e:
-  closed_rty ∅ (ρ !<[ ((tdEx b2 ϕ2 A) ^a^ v2) ○ B ]>) ->
+Lemma denotation_application_tletapp ρ1 τ2 A ρ B (v1 v2: value) e:
+  closed_rty ∅ (ρ !<[ ((ex_phi_to_td τ2 A) ^a^ v2) ○ B ]>) ->
   ∅ ⊢t tletapp v1 v2 e ⋮t ⌊ρ⌋ ->
   ⟦ρ1⟧ v2 ->
-  ⟦ρ1⇨[:b2|ϕ2]!<[A]>⟧ v1 ->
-  (forall (v_x : value), ⟦ {:b2|ϕ2} ^r^ v2 ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
-  ⟦ ρ !<[ ((tdEx b2 ϕ2 A) ^a^ v2) ○ B ]> ⟧ (tletapp v1 v2 e).
+  ⟦ρ1⇨(τ2!<[A]>)⟧ v1 ->
+  (forall (v_x : value), ⟦ (flip_rty τ2) ^r^ v2 ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
+  ⟦ ρ !<[ ((ex_phi_to_td τ2 A) ^a^ v2) ○ B ]> ⟧ (tletapp v1 v2 e).
 Proof.
   intros.
-  assert (∅ ⊢t mk_app_e_v v1 v2 ⋮t b2).
+  assert (∅ ⊢t mk_app_e_v v1 v2 ⋮t ⌊ τ2 ⌋).
   { sinvert H0. simp_for_basic_typing.
     eapply mk_app_e_v_has_type; simp_for_basic_typing; eauto. }
   eapply rtyR_refine with (e1 := tlete (mk_app_e_v v1 v2) e). is_tm_rty_tac.
@@ -240,47 +223,21 @@ Proof.
     - intros. rewrite reduction_tlete_iff in H0. simp_hyp H0.
       rewrite reduction_tletapp_iff. intuition. lc_solver_plus.
       do 2 eexists; intuition; eauto. }
-  apply denotation_application_tlete_base; eauto.
+  assert (fine_rty (τ2!<[A]>)) as Hfine by
+      (apply rtyR_typed_closed in H2; rewrite closed_rty_arr in H2; simpl in *; intuition).
+  rewrite ex_phi_to_td_open by (simpl in Hfine; intuition).
+  rewrite ex_phi_to_td_open in H by (simpl in Hfine; intuition).
+  setoid_rewrite flip_rty_open in H3.
+  apply denotation_application_tlete; eauto.
   - sinvert H0. simp_for_basic_typing.
-    assert (∅ ⊢t mk_app_e_v v1 v2 ⋮t b2).
+    assert (∅ ⊢t mk_app_e_v v1 v2 ⋮t ⌊ τ2 ⌋).
     { eapply mk_app_e_v_has_type; simp_for_basic_typing; eauto. }
     auto_exists_L.
-  - clear H3.
-    simpl in H2. simp_hyp H2. ospecialize (H7 v2 _);
+  - simpl in H2. simp_hyp H2. ospecialize (H8 v2 _);
       repeat rewrite_measure_irrelevant; eauto.
+    rewrite rtyR_measure_irrelevant' in H8; eauto. simpl.
+    setoid_rewrite <- open_preserves_rty_measure. lia.
 Qed.
-
-Lemma denotation_application_tletapp_arr ρ1 ρ2 τ2 A ρ B (v1 v2: value) e:
-  closed_rty ∅ (ρ !<[ (A ^a^ v2) ○ B ]>) ->
-  ∅ ⊢t tletapp v1 v2 e ⋮t ⌊ρ⌋ ->
-  ⟦ρ1⟧ v2 ->
-  ⟦ρ1⇨(ρ2⇨τ2)!<[A]>⟧ v1 ->
-  (forall (v_x : value), ⟦ (ρ2⇨τ2) ^r^ v2 ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
-  ⟦ ρ !<[ (A ^a^ v2) ○ B ]> ⟧ (tletapp v1 v2 e).
-Proof.
-  intros.
-  assert (∅ ⊢t mk_app_e_v v1 v2 ⋮t ⌊ ρ2⇨τ2 ⌋).
-  { sinvert H0. simp_for_basic_typing.
-    eapply mk_app_e_v_has_type; simp_for_basic_typing; eauto. }
-  eapply rtyR_refine with (e1 := tlete (mk_app_e_v v1 v2) e). is_tm_rty_tac.
-  { sinvert H0. simp_for_basic_typing.
-    econstructor.
-    - eexists; intuition; simp_for_basic_typing; eauto.
-    - intros. rewrite reduction_tlete_iff in H0. simp_hyp H0.
-      rewrite reduction_tletapp_iff. intuition. lc_solver_plus.
-      do 2 eexists; intuition; eauto. }
-  apply denotation_application_tlete_arr with (ρ1 := ρ2 ^r^ v2) (τ1 := {1 ~r> v2} τ2). eauto.
-  - sinvert H0. simp_for_basic_typing.
-    assert (∅ ⊢t mk_app_e_v v1 v2 ⋮t ⌊ ρ2⇨τ2 ⌋).
-    { eapply mk_app_e_v_has_type; simp_for_basic_typing; eauto. }
-    auto_exists_L.
-  - clear H3.
-    simpl in H2. simp_hyp H2. ospecialize (H7 v2 _);
-      repeat rewrite_measure_irrelevant; eauto.
-    apply H7.
-Qed.
-
-
 
 Lemma reduction_tleteffop_op_iff: forall op α (c c': constant) β,
     α ⊧ mk_app_e_v (value_of_op op) c ↪*{ β} c' <-> α⊧{op~c}⇓{β}{c'}.
@@ -294,44 +251,13 @@ Proof.
     simpl. econstructor. econstructor; eauto. eauto.
 Qed.
 
-(* Lemma denotation_application_tletopapp ρ1 b2 ϕ2 A ρ B op (v2: value) e: *)
-(*   closed_rty ∅ (ρ !<[ ((tdEx b2 ϕ2 A) ^a^ v2) ○ B ]>) -> *)
-(*   ∅ ⊢t tleteffop op v2 e ⋮t ⌊ρ⌋ -> *)
-(*   ⟦ρ1⟧ v2 -> *)
-(*   ⟦ρ1⇨[:b2|ϕ2]!<[A]>⟧ (value_of_op op) -> *)
-(*   (forall (v_x : value), ⟦ {:b2|ϕ2} ^r^ v2 ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) -> *)
-(*   ⟦ ρ !<[ ((tdEx b2 ϕ2 A) ^a^ v2) ○ B ]> ⟧ (tleteffop op v2 e). *)
-(* Proof. *)
-(*   intros. *)
-(*   sinvert H0. *)
-(*   assert (T1 ⤍ Tx = ⌊ρ1⌋ ⤍ b2). { *)
-(*     apply rtyR_typed_closed in H1; simp_hyp H1; eauto. *)
-(*     apply rtyR_typed_closed in H2; simp_hyp H2; eauto. *)
-(*     pose (value_of_op_regular_basic_typing op) as HZ. rewrite H10 in HZ. *)
-(*     sinvert H2. *)
-(*     eapply basic_typing_value_unique; eauto. *)
-(*   } *)
-(*   sinvert H0; subst. *)
-(*   assert (∅ ⊢t tletapp (value_of_op op) v2 e ⋮t ⌊ρ⌋). admit. *)
-(*   eapply rtyR_refine with (e1 := tletapp (value_of_op op) v2 e). is_tm_rty_tac. admit. *)
-(*   { econstructor. simpl. eauto. split; eauto. finerty_destruct ρ. *)
-(*     - intros. simpl in H6. simp_hyp H6. rewrite reduction_tlete_iff in H4. simp_hyp H4. *)
-(*       rewrite reduction_tleteffop_iff. intuition. *)
-(*       sinvert H8. assert (∅ ⊢t v_x ⋮v b2). admit. sinvert H6. *)
-(*       rewrite reduction_tleteffop_op_iff in H7. *)
-(*       exists c. exists c0. exists βx; intuition. *)
-(*       all: my_set_solver. *)
-(*   } *)
-(*   eapply denotation_application_tletapp_base; eauto. *)
-(* Qed. *)
-
 Lemma denotation_application_tletopapp ρ1 b2 ϕ2 A ρ B op (v2: value) e:
-  closed_rty ∅ (ρ !<[ ((tdEx b2 ϕ2 A) ^a^ v2) ○ B ]>) ->
+  closed_rty ∅ (ρ !<[ ((ex_phi_to_td [:b2|ϕ2] A) ^a^ v2) ○ B ]>) ->
   ∅ ⊢t tleteffop op v2 e ⋮t ⌊ρ⌋ ->
   ⟦ρ1⟧ v2 ->
   ⟦ρ1⇨[:b2|ϕ2]!<[A]>⟧ (value_of_op op) ->
-  (forall (v_x : value), ⟦ {:b2|ϕ2} ^r^ v2 ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
-  ⟦ ρ !<[ ((tdEx b2 ϕ2 A) ^a^ v2) ○ B ]> ⟧ (tleteffop op v2 e).
+  (forall (v_x : value), ⟦ (flip_rty [:b2|ϕ2]) ^r^ v2 ⟧ v_x -> ⟦ (ρ !<[ B ]>) ^r^ v_x⟧ (e ^t^ v_x)) ->
+  ⟦ ρ !<[ ((ex_phi_to_td [:b2|ϕ2] A) ^a^ v2) ○ B ]> ⟧ (tleteffop op v2 e).
 Proof.
   intros.
   sinvert H0.
@@ -358,9 +284,11 @@ Proof.
       exists c. exists c0. exists βx; intuition.
       all: my_set_solver.
   }
-  apply denotation_application_tlete_base; eauto.
-  - clear H3.
-    simpl in H2. simp_hyp H2. ospecialize (H7 v2 _);
+  rewrite ex_phi_to_td_open by (simpl in *; intuition).
+  rewrite ex_phi_to_td_open in H by (simpl in *; intuition).
+  setoid_rewrite flip_rty_open in H3.
+  apply denotation_application_tlete; eauto.
+  - simpl in H2. simp_hyp H2. ospecialize (H9 v2 _);
       repeat rewrite_measure_irrelevant; eauto.
 Qed.
 

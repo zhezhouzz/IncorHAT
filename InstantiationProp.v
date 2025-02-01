@@ -292,6 +292,39 @@ Proof.
   msubst_tac.
 Qed.
 
+Lemma msubst_tdExArr: forall (Γv: env) T1 T2 A,
+    m{Γv}a (tdExArr T1 T2 A) = tdExArr T1 T2 (m{Γv}a A).
+Proof.
+  msubst_tac.
+Qed.
+
+Lemma msubst_flip_rty: forall (Γv: env) τ,
+    closed_env Γv ->
+    m{Γv}r (flip_rty τ) = flip_rty (m{Γv}r τ).
+Proof.
+  destruct τ; simpl flip_rty; intros; eauto.
+  - rewrite msubst_overrty by eauto.
+    rewrite msubst_underrty; eauto.
+  - rewrite msubst_overrty by eauto.
+    rewrite msubst_underrty; eauto.
+  - rewrite msubst_arrrty; eauto.
+  - rewrite msubst_tdrty; eauto.
+Qed.
+
+Lemma msubst_ex_phi_to_td: forall (Γv: env) τ A,
+    closed_env Γv ->
+    m{Γv}a (ex_phi_to_td τ A) = (ex_phi_to_td (m{Γv}r τ) (m{Γv}a A)).
+Proof.
+  destruct τ; simpl ex_phi_to_td; intros; eauto.
+  - rewrite msubst_overrty; eauto.
+  - rewrite msubst_underrty; eauto.
+    rewrite msubst_tdEx; eauto.
+  - rewrite msubst_arrrty; eauto. simpl.
+    repeat rewrite <- rty_erase_msubst_eq; eauto.
+    rewrite msubst_tdExArr; eauto.
+  - rewrite msubst_tdrty; eauto.
+Qed.
+
 Tactic Notation "rewrite_msubst" constr(lem) "in" hyp(H) :=
   rewrite lem in H; eauto using ctxRst_closed_env.
 
@@ -347,8 +380,12 @@ Ltac msubst_simp :=
   | |- context [ m{ _ }a (tdLitOut _ _ _ _ _) ] => rewrite msubst_tdLitOut
   | H: context [ m{ _ }a (tdEx _ _ _) ] |- _ => rewrite msubst_tdEx in H
   | |- context [ m{ _ }a (tdEx _ _ _) ] => rewrite msubst_tdEx
+  | H: context [ m{ _ }a (tdExArr _ _ _) ] |- _ => rewrite msubst_tdExArr in H
+  | |- context [ m{ _ }a (tdExArr _ _ _) ] => rewrite msubst_tdExArr
   | H: context [ m{ _ }a tdId ] |- _ => rewrite msubst_tdId in H
   | |- context [ m{ _ }a tdId ] => rewrite msubst_tdId
+  | H: context [ m{ _ }a (ex_phi_to_td _ _) ] |- _ => rewrite msubst_ex_phi_to_td in H
+  | |- context [ m{ _ }a (ex_phi_to_td _ _) ] => rewrite msubst_ex_phi_to_td
   | H: context [ { _ ~a> _ } tdId ] |- _ => rewrite open_tdId_same in H
   | |- context [ { _ ~a> _ } tdId ] => rewrite open_tdId_same
   | H: context [ m{ _ }t (tlete _ _) ] |- _ => rewrite msubst_lete in H
@@ -388,6 +425,8 @@ Ltac msubst_simp :=
   | |- context [ m{ _ }r (mk_top _) ] => rewrite msubst_mk_top
   | H: context [ m{ _ }r (mk_eq_constant _) ] |- _ => rewrite msubst_mk_eq_constant in H
   | |- context [ m{ _ }r (mk_eq_constant _) ] => rewrite msubst_mk_eq_constant
+  | H: context [ m{ _ }r (flip_rty _) ] |- _ => rewrite msubst_flip_rty in H
+  | |- context [ m{ _ }r (flip_rty _) ] => rewrite msubst_flip_rty
   | H: context [ m{ _ }r (mk_eq_var _ ?x) ], H': _ !! ?x = Some ?v |- _ => rewrite msubst_mk_eq_var with (v:=v) in H
   | H': _ !! ?x = Some ?v |- context [ m{ _ }r (mk_eq_var _ ?x) ] => rewrite msubst_mk_eq_var with (v:=v)
   end; eauto using ctxRst_closed_env.
@@ -868,32 +907,72 @@ Proof.
     + split; auto. inversion H3. subst. apply not_elem_of_dom in Hx. eauto.
 Qed.
 
-(* Lemma msubst_fvar_inv (Γv : env) v (x : atom) : *)
-(*   closed_env Γv -> *)
-(*   m{Γv}v v = x -> *)
-(*   v = x /\ x ∉ dom Γv. *)
-(* Proof. *)
-(*   pose fv_of_msubst_value_closed. *)
-(*   pose msubst_fvar_inv_eq. *)
-(*   split; eauto. *)
-(*   msubst_tac. *)
-(*   msubst_tac. *)
-(*   - my_set_solver. *)
-(*   - destruct v. *)
-(*     + admit.  rewrite <- H0 in H3. rewrite map_Forall_insert in H3; eauto. simp_hyps. *)
-
-(*       simplify_eq. *)
-(*     simpl in H3; simplify_eq. *)
-(*     + split; eauto. apply H6. simpl in H3.  *)
-(*     case_decide; simplify_eq. exfalso. *)
-(*     apply map_Forall_insert in H1; eauto. simp_hyps. *)
-(*     unfold closed_value in *. *)
-(*     cbn in *. qauto using non_empty_singleton. *)
-(*     simp_hyps. split; eauto. subst. *)
-(*     rewrite dom_insert. my_set_solver. *)
-(* Qed. *)
+Lemma msubst_destruct_rev_tm: forall (Γv: env) (x: atom) (v_x: value) (e: tm),
+    closed_env Γv -> closed_value v_x -> x ∉ dom Γv ->
+    (m{<[x:=v_x]> Γv}t) e = m{Γv}t ({ x:=v_x }t e).
+Proof.
+  intros.
+  rewrite_msubst_insert.
+  2 : { apply not_elem_of_dom. eauto. }
+  revert_all.
+  intros *.
+  msubst_tac.
+  setoid_rewrite <- H1; eauto.
+  2: { my_set_solver. }
+  rewrite subst_commute_tm by my_set_solver; eauto.
+Qed.
 
 Lemma is_tm_rty_msubst: forall τ Γv, closed_env Γv -> is_tm_rty (m{ Γv }r τ) <-> is_tm_rty τ.
 Proof.
   split; induction τ; simpl; intros; msubst_simp.
 Qed.
+
+Lemma pure_rty_msubst: forall τ Γv, closed_env Γv -> pure_rty (m{ Γv }r τ) <-> pure_rty τ.
+Proof.
+  split; induction τ; simpl; intros; msubst_simp.
+Qed.
+
+Lemma tdable_rty_msubst: forall τ Γv, closed_env Γv -> tdable_rty (m{ Γv }r τ) <-> tdable_rty τ.
+Proof.
+  split; induction τ; simpl; intros; msubst_simp.
+Qed.
+
+Lemma fine_rty_msubst: forall τ Γv, closed_env Γv -> fine_rty (m{ Γv }r τ) <-> fine_rty τ.
+Proof.
+  split; induction τ; simpl; intros; repeat msubst_simp; simp_hyps; eauto.
+  - simpl in H0. intuition.
+    + setoid_rewrite <- pure_rty_msubst; eauto.
+    + setoid_rewrite <- is_tm_rty_msubst; eauto.
+  - simpl in H0. intuition.
+    + setoid_rewrite <- tdable_rty_msubst; eauto.
+  - simpl; intuition.
+    + setoid_rewrite pure_rty_msubst; eauto.
+    + setoid_rewrite is_tm_rty_msubst; eauto.
+  - simpl; intuition.
+    + setoid_rewrite tdable_rty_msubst; eauto.
+Qed.
+
+Ltac fine_rty_simp_aux :=
+  match goal with
+  | [H: context [ fine_rty (m{_}r ?τ) ] |- _ ] => setoid_rewrite fine_rty_msubst in H
+  | [H: _ |- context [ fine_rty (m{_}r ?τ) ] ] => setoid_rewrite fine_rty_msubst
+  | [H: context [ tdable_rty (m{_}r ?τ) ] |- _ ] => setoid_rewrite tdable_rty_msubst in H
+  | [H: _ |- context [ tdable_rty (m{_}r ?τ) ] ] => setoid_rewrite tdable_rty_msubst
+  | [H: context [ is_tm_rty (m{_}r ?τ) ] |- _ ] => setoid_rewrite is_tm_rty_msubst in H
+  | [H: _ |- context [ is_tm_rty (m{_}r ?τ) ] ] => setoid_rewrite is_tm_rty_msubst
+  | [H: context [ pure_rty (m{_}r ?τ) ] |- _ ] => setoid_rewrite pure_rty_msubst in H
+  | [H: _ |- context [ pure_rty (m{_}r ?τ) ] ] => setoid_rewrite pure_rty_msubst
+  end.
+
+Ltac msubst_simp_tac :=
+  repeat (match goal with
+          | [H: context [ fine_rty (m{_}r ?τ) ] |- _ ] => setoid_rewrite fine_rty_msubst in H
+          | [H: _ |- context [ fine_rty (m{_}r ?τ) ] ] => setoid_rewrite fine_rty_msubst
+          | [H: context [ tdable_rty (m{_}r ?τ) ] |- _ ] => setoid_rewrite tdable_rty_msubst in H
+          | [H: _ |- context [ tdable_rty (m{_}r ?τ) ] ] => setoid_rewrite tdable_rty_msubst
+          | [H: context [ is_tm_rty (m{_}r ?τ) ] |- _ ] => setoid_rewrite is_tm_rty_msubst in H
+          | [H: _ |- context [ is_tm_rty (m{_}r ?τ) ] ] => setoid_rewrite is_tm_rty_msubst
+          | [H: context [ pure_rty (m{_}r ?τ) ] |- _ ] => setoid_rewrite pure_rty_msubst in H
+          | [H: _ |- context [ pure_rty (m{_}r ?τ) ] ] => setoid_rewrite pure_rty_msubst
+          | _ => msubst_simp
+          end).
